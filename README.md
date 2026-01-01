@@ -2,40 +2,333 @@
 
 A Model Context Protocol (MCP) server that provides tools for extracting text and images from PDF and image files using the Mistral OCR API.
 
+## Features
+
+- **Simple Text Extraction**: Extract markdown content from documents without handling images
+- **Full Extraction with Images**: Extract markdown and save embedded images to disk with proper relative links
+- **Security Sandbox**: Restricts file writes to a configured allowed directory
+- **Zero-Install Deployment**: Run with `uvx` without prior installation
+- **Supported Formats**: PDF (`.pdf`), PNG (`.png`), JPEG (`.jpg`, `.jpeg`), WebP (`.webp`), GIF (`.gif`)
+
+---
+
+## Quickstart
+
+Run the server directly with `uvx` (no installation required):
+
+```bash
+MISTRAL_API_KEY="your-api-key-here" \
+MISTRAL_OCR_ALLOWED_DIR="/absolute/path/to/allowed/directory" \
+uvx mistral-ocr-mcp
+```
+
+**Important**: `MISTRAL_OCR_ALLOWED_DIR` must be:
+- An **absolute path** (e.g., `/Users/username/documents`, not `~/documents`)
+- An **existing directory** on your filesystem
+- The location where you want to allow the server to write extracted images
+
+The server will start in stdio mode and wait for MCP client connections.
+
+---
+
 ## Installation
+
+### For Use with MCP Clients
+
+Install via pip:
 
 ```bash
 pip install mistral-ocr-mcp
 ```
 
-Or use with uvx (recommended for zero-install deployment):
+Then configure your MCP client (e.g., Claude Desktop) to run:
 
 ```bash
-uvx mistral-ocr-mcp
+mistral-ocr-mcp
 ```
 
-## Usage
+### For Development
 
-The server will provide two tools (implementation in progress):
-- `extract_markdown`: Extract markdown content from a document
-- `extract_markdown_with_images`: Extract markdown and save embedded images to disk
+Clone the repository and install with development dependencies:
+
+```bash
+git clone https://github.com/ordis/mistral-ocr-multimedia-mcp
+cd mistral-ocr-multimedia-mcp
+pip install -e '.[dev]'
+```
+
+Run the server:
+
+```bash
+MISTRAL_API_KEY="your-key" \
+MISTRAL_OCR_ALLOWED_DIR="/path/to/allowed/dir" \
+python -m mistral_ocr_mcp
+```
+
+---
 
 ## Configuration
 
-Set the following environment variables:
-- `MISTRAL_API_KEY`: Your Mistral API key
-- `MISTRAL_OCR_ALLOWED_DIR`: The allowed directory for file write operations
+### Required Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `MISTRAL_API_KEY` | Your Mistral API key (never logged) | `sk-abc123...` |
+| `MISTRAL_OCR_ALLOWED_DIR` | Absolute path to allowed write directory | `/Users/ben/Development` |
+
+### Security Sandbox
+
+The server enforces a **write directory sandbox** to prevent unauthorized file writes:
+
+- **`extract_markdown`**: No write restrictions (read-only operation)
+- **`extract_markdown_with_images`**: The `output_dir` parameter **must** be within `MISTRAL_OCR_ALLOWED_DIR`
+
+**Validation Examples:**
+
+| `MISTRAL_OCR_ALLOWED_DIR` | `output_dir` | Result |
+|---------------------------|--------------|--------|
+| `/Users/ben/Development` | `/Users/ben/Development/project/output` | ✅ Allowed |
+| `/Users/ben/Development` | `/Users/ben/Development` | ✅ Allowed (exact match) |
+| `/Users/ben/Development` | `/Users/ben/Documents` | ❌ Rejected |
+| `/Users/ben/Development` | `/Users/ben/Development/../Documents` | ❌ Rejected (resolves outside) |
+
+**Security Notes:**
+- All paths are canonicalized (symlinks resolved, `..` eliminated) before validation
+- Image filenames are sanitized to prevent path traversal attacks
+
+---
+
+## Tool Reference
+
+### Tool 1: `extract_markdown`
+
+Extract markdown content from a document **without** saving images.
+
+**Arguments:**
+
+```json
+{
+  "file_path": "/absolute/path/to/document.pdf"
+}
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file_path` | `string` | Yes | Absolute path to input file (PDF or image) |
+
+**Returns:**
+
+```json
+"# Document Title\n\nExtracted markdown content from all pages..."
+```
+
+Returns a single string containing concatenated markdown from all pages.
+
+**Example:**
+
+```json
+{
+  "tool": "extract_markdown",
+  "arguments": {
+    "file_path": "/Users/ben/documents/report.pdf"
+  }
+}
+```
+
+---
+
+### Tool 2: `extract_markdown_with_images`
+
+Extract markdown content **and** save embedded images to disk.
+
+**Arguments:**
+
+```json
+{
+  "file_path": "/absolute/path/to/document.pdf",
+  "output_dir": "/absolute/path/to/output/parent"
+}
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `file_path` | `string` | Yes | Absolute path to input file (PDF or image) |
+| `output_dir` | `string` | Yes | Absolute path to output parent directory (must exist and be writable, must be within `MISTRAL_OCR_ALLOWED_DIR`) |
+
+**Returns:**
+
+```json
+{
+  "output_directory": "/absolute/path/to/output/parent/document",
+  "markdown_file": "/absolute/path/to/output/parent/document/content.md",
+  "images": ["img_abc123.png", "img_def456.jpeg"]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `output_directory` | `string` | Absolute path to created subdirectory |
+| `markdown_file` | `string` | Absolute path to `content.md` file |
+| `images` | `array[string]` | List of saved image filenames (not full paths) |
+
+**Behavior:**
+
+1. Creates a subdirectory named after the input file stem (e.g., `report` for `report.pdf`)
+2. If the subdirectory already exists, appends a timestamp: `report_20260102_143022`
+3. Saves all extracted images as `<sanitized_id>.<ext>` (e.g., `img_abc123.png`)
+4. Saves markdown to `content.md` with relative image links (e.g., `![](./img_abc123.png)`)
+
+**Example:**
+
+```json
+{
+  "tool": "extract_markdown_with_images",
+  "arguments": {
+    "file_path": "/Users/ben/documents/quarterly-report.pdf",
+    "output_dir": "/Users/ben/Development/extracted"
+  }
+}
+```
+
+**Output Structure:**
+
+```
+/Users/ben/Development/extracted/
+  quarterly-report/
+    content.md          # Markdown with relative image links
+    img_abc123.png      # First extracted image
+    img_def456.jpeg     # Second extracted image
+```
+
+---
+
+## Example Client Usage
+
+Here's a minimal Python example using the MCP SDK to call the tools:
+
+```python
+import asyncio
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+async def extract_document():
+    server_params = StdioServerParameters(
+        command="mistral-ocr-mcp",
+        env={
+            "MISTRAL_API_KEY": "your-api-key",
+            "MISTRAL_OCR_ALLOWED_DIR": "/Users/ben/Development"
+        }
+    )
+    
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            
+            # Simple extraction
+            result = await session.call_tool(
+                "extract_markdown",
+                arguments={"file_path": "/path/to/document.pdf"}
+            )
+            print(result.content[0].text)
+            
+            # Extraction with images
+            result = await session.call_tool(
+                "extract_markdown_with_images",
+                arguments={
+                    "file_path": "/path/to/document.pdf",
+                    "output_dir": "/Users/ben/Development/output"
+                }
+            )
+            print(result.content[0].text)
+
+asyncio.run(extract_document())
+```
+
+---
+
+## Troubleshooting
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Missing required environment variable: MISTRAL_API_KEY` | `MISTRAL_API_KEY` not set | Set the environment variable before running the server |
+| `Missing required environment variable: MISTRAL_OCR_ALLOWED_DIR` | `MISTRAL_OCR_ALLOWED_DIR` not set | Set the environment variable to an absolute path |
+| `MISTRAL_OCR_ALLOWED_DIR must be an absolute path` | Relative path provided (e.g., `~/documents`) | Use an absolute path (e.g., `/Users/username/documents`) |
+| `MISTRAL_OCR_ALLOWED_DIR does not exist` | Directory does not exist on filesystem | Create the directory first: `mkdir -p /path/to/dir` |
+| `MISTRAL_OCR_ALLOWED_DIR is not a directory` | Path points to a file, not a directory | Ensure the path is a directory |
+| `output_dir must be within the allowed directory` | `output_dir` is outside `MISTRAL_OCR_ALLOWED_DIR` | Use a path within the allowed directory |
+| `file_path must be an absolute path` | Relative path provided for input file | Use an absolute path (e.g., `/Users/username/file.pdf`) |
+| `Unsupported file type` | File extension not supported | Use `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp`, or `.gif` |
+| `File not found` | Input file does not exist | Check the file path and ensure the file exists |
+| `output_dir does not exist or is not a directory` | Output directory invalid | Ensure the directory exists before calling the tool |
+| `Mistral API error: 401` | Invalid API key | Check your `MISTRAL_API_KEY` |
+| `Mistral API error: 429` | Rate limit exceeded | Wait and retry, or check your API quota |
+
+---
 
 ## Development
 
-Install with development dependencies:
+### Install Development Dependencies
 
 ```bash
 pip install -e '.[dev]'
 ```
 
-Run tests:
+### Run Tests
+
+Run the full test suite:
 
 ```bash
 pytest
 ```
+
+Run tests with verbose output:
+
+```bash
+pytest -v
+```
+
+Run tests in quiet mode:
+
+```bash
+pytest -q
+```
+
+### Project Structure
+
+```
+mistral-ocr-multimedia-mcp/
+├── src/
+│   └── mistral_ocr_mcp/
+│       ├── __init__.py
+│       ├── __main__.py          # Entry point
+│       ├── server.py            # MCP server and tool definitions
+│       ├── config.py            # Configuration loading and validation
+│       ├── extraction.py        # OCR orchestration logic
+│       ├── mistral_client.py    # Mistral API client
+│       ├── images.py            # Image parsing and saving
+│       ├── markdown_rewrite.py  # Markdown link rewriting
+│       └── path_sandbox.py      # Path validation and sandbox enforcement
+├── tests/                       # Unit tests
+├── pyproject.toml              # Package configuration
+└── README.md                   # This file
+```
+
+---
+
+## License
+
+MIT
+
+---
+
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request.
+
+---
+
+## Links
+
+- **GitHub Repository**: https://github.com/ordis/mistral-ocr-multimedia-mcp
+- **MCP Specification**: https://modelcontextprotocol.io
+- **Mistral AI**: https://mistral.ai

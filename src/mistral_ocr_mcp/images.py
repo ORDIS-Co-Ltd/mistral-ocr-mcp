@@ -83,7 +83,7 @@ def save_base64_image(output_dir: Path, image_id: str, data_uri: str) -> str:
 
     Args:
         output_dir: Directory to save the image in
-        image_id: Identifier for the image (used as filename without extension)
+        image_id: Identifier for the image (used as filename; may already include an extension)
         data_uri: Base64 data URI string
 
     Returns:

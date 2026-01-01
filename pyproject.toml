@@ -29,3 +29,6 @@ mistral-ocr-mcp = "mistral_ocr_mcp.__main__:main"
 [project.urls]
 Homepage = "https://github.com/ordis/mistral-ocr-multimedia-mcp"
 Repository = "https://github.com/ordis/mistral-ocr-multimedia-mcp"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mistral_ocr_mcp"]

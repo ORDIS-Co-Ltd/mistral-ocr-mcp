@@ -16,7 +16,7 @@ uvx mistral-ocr-mcp
 
 ## Usage
 
-The server provides two tools:
+The server will provide two tools (implementation in progress):
 - `extract_markdown`: Extract markdown content from a document
 - `extract_markdown_with_images`: Extract markdown and save embedded images to disk
 

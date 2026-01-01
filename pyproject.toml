@@ -32,3 +32,8 @@ Repository = "https://github.com/ordis/mistral-ocr-multimedia-mcp"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mistral_ocr_mcp"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

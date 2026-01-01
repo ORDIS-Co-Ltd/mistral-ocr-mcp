@@ -95,7 +95,30 @@ def save_base64_image(output_dir: Path, image_id: str, data_uri: str) -> str:
     try:
         mime_type, raw_b64 = parse_data_uri(data_uri)
         ext = get_extension_from_mime(mime_type)
-        filename = f"{image_id}{ext}"
+
+        # Sanitize image_id to prevent path traversal attacks
+        # First, remove any path separators and null bytes
+        sanitized_id = image_id.replace("\0", "_")
+        # Remove any directory separators and parent directory references
+        sanitized_id = sanitized_id.replace("/", "_").replace("\\", "_")
+        sanitized_id = sanitized_id.replace("..", "__")
+
+        # Only allow alphanumeric characters, underscores, hyphens, and dots
+        sanitized_id = re.sub(r"[^\w\-.]", "_", sanitized_id)
+
+        # Ensure it doesn't start with a dot (hidden file) or dash (flag)
+        if sanitized_id.startswith(".") or sanitized_id.startswith("-"):
+            sanitized_id = "_" + sanitized_id.lstrip(".-")
+
+        # Remove any remaining path traversal patterns
+        sanitized_id = re.sub(r"\.\.+", "__", sanitized_id)
+
+        # Limit length to prevent filesystem issues
+        max_id_length = 200  # Leave room for extension
+        if len(sanitized_id) > max_id_length:
+            sanitized_id = sanitized_id[:max_id_length]
+
+        filename = f"{sanitized_id}{ext}"
         output_path = output_dir / filename
 
         # Decode base64
@@ -112,11 +135,6 @@ def save_base64_image(output_dir: Path, image_id: str, data_uri: str) -> str:
     except (binascii.Error, ValueError) as e:
         raise ImageError(
             f"Failed to decode base64 image data for image_id={image_id}: {e}"
-        ) from e
-
-    except OSError as e:
-        raise ImageError(
-            f"Failed to write image file for image_id={image_id} to {output_dir}: {e}"
         ) from e
 
 

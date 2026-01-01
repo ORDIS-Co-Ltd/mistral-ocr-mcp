@@ -17,6 +17,126 @@ from mistral_ocr_mcp.images import (
 )
 
 
+class TestSaveBase64ImagePathTraversal:
+    """Tests for path traversal protection in save_base64_image."""
+
+    def test_normal_image_id_preserved(self, tmp_path):
+        """Test that normal safe image IDs are preserved."""
+        image_id = "img_abc123"
+        data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+        result = save_base64_image(tmp_path, image_id, data_uri)
+
+        assert result == f"{image_id}.png"
+        assert (tmp_path / result).exists()
+
+    def test_path_traversal_attempt_blocked(self, tmp_path):
+        """Test that path traversal attempts are blocked."""
+        malicious_id = "../../../etc/passwd"
+        data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+        result = save_base64_image(tmp_path, malicious_id, data_uri)
+
+        # The result should not contain path separators
+        assert ".." not in result
+        assert "/" not in result
+        assert "\\" not in result
+        # File should exist in the intended directory
+        assert (tmp_path / result).exists()
+        # Should NOT create files outside the intended directory (use safe path check)
+        outside_path = tmp_path.parent / "etc" / "passwd.png"
+        assert not outside_path.exists()
+
+    def test_null_byte_blocked(self, tmp_path):
+        """Test that null bytes in image ID are handled."""
+        malicious_id = "image\x00name"
+        data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+        result = save_base64_image(tmp_path, malicious_id, data_uri)
+
+        # Null bytes should be replaced
+        assert "\0" not in result
+
+    def test_special_characters_sanitized(self, tmp_path):
+        """Test that special characters are properly sanitized."""
+        special_id = "image<script>alert('xss')</script>"
+        data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+        result = save_base64_image(tmp_path, special_id, data_uri)
+
+        # Dangerous characters should be sanitized
+        assert "<" not in result
+        assert ">" not in result
+        assert "'" not in result
+        assert '"' not in result
+        assert "(" not in result
+        assert ")" not in result
+
+    def test_id_too_long_truncated(self, tmp_path):
+        """Test that very long IDs are truncated."""
+        long_id = "a" * 300  # Very long ID
+        data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+        result = save_base64_image(tmp_path, long_id, data_uri)
+
+        # Should be truncated to 255 chars + extension
+        assert len(result) <= 255 + 4  # +4 for ".png"
+
+    def test_hidden_file_attempt_blocked(self, tmp_path):
+        """Test that attempts to create hidden files are blocked."""
+        hidden_id = ".hidden_file"
+        data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+        result = save_base64_image(tmp_path, hidden_id, data_uri)
+
+        # Should not start with dot
+        assert not result.startswith(".")
+        assert result.startswith("_")
+
+    def test_flag_file_attempt_blocked(self, tmp_path):
+        """Test that attempts to create flag files are blocked."""
+        flag_id = "-flag_file"
+        data_uri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+        result = save_base64_image(tmp_path, flag_id, data_uri)
+
+        # Should not start with dash
+        assert not result.startswith("-")
+
+
+class TestSaveImagesPathTraversal:
+    """Tests for path traversal protection in save_images."""
+
+    def test_multiple_images_with_malicious_ids(self, tmp_path):
+        """Test that multiple images with malicious IDs are all sanitized."""
+        images = [
+            {
+                "id": "safe_image_1",
+                "image_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            },
+            {
+                "id": "../../../malicious/path",
+                "image_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            },
+            {
+                "id": "normal_image_2",
+                "image_base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            },
+        ]
+
+        result = save_images(tmp_path, images)
+
+        # All filenames should be safe
+        for filename in result:
+            assert ".." not in filename
+            assert "/" not in filename
+            assert "\\" not in filename
+
+        # All files should exist in the intended directory
+        for filename in result:
+            assert (tmp_path / filename).exists()
+
+
 class TestParseDataURI:
     """Tests for parse_data_uri function."""
 

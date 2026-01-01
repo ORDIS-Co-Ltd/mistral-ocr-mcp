@@ -11,6 +11,76 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from mistral_ocr_mcp.server import list_tools_impl, call_tool_impl
 from mistral_ocr_mcp.extraction import extract_markdown, extract_markdown_with_images
 from mistral_ocr_mcp.path_sandbox import PathValidationError
+import mcp.types
+
+
+class TestMCPToolRegistration:
+    """Tests for actual MCP tool registration and schemas."""
+
+    def test_extract_markdown_tool_has_correct_name(self):
+        """Test that extract_markdown tool has the correct MCP name."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def get_tool_names():
+            tools = await mcp.list_tools()
+            return [tool.name for tool in tools]
+
+        tool_names = asyncio.run(get_tool_names())
+        assert "extract_markdown" in tool_names
+        assert "extract_markdown_tool" not in tool_names
+
+    def test_extract_markdown_with_images_tool_has_correct_name(self):
+        """Test that extract_markdown_with_images tool has the correct MCP name."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def get_tool_names():
+            tools = await mcp.list_tools()
+            return [tool.name for tool in tools]
+
+        tool_names = asyncio.run(get_tool_names())
+        assert "extract_markdown_with_images" in tool_names
+        assert "extract_markdown_with_images_tool" not in tool_names
+
+    def test_extract_markdown_tool_schema(self):
+        """Test that extract_markdown tool has the correct schema."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def find_extract_markdown_tool():
+            tools = await mcp.list_tools()
+            for tool in tools:
+                if tool.name == "extract_markdown":
+                    return tool
+            return None
+
+        tool = asyncio.run(find_extract_markdown_tool())
+        assert tool is not None
+        assert hasattr(tool, "inputSchema")
+        assert "file_path" in tool.inputSchema.get("properties", {})
+        assert tool.inputSchema["properties"]["file_path"]["type"] == "string"
+
+    def test_extract_markdown_with_images_tool_schema(self):
+        """Test that extract_markdown_with_images tool has the correct schema."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def find_extract_markdown_with_images_tool():
+            tools = await mcp.list_tools()
+            for tool in tools:
+                if tool.name == "extract_markdown_with_images":
+                    return tool
+            return None
+
+        tool = asyncio.run(find_extract_markdown_with_images_tool())
+        assert tool is not None
+        assert hasattr(tool, "inputSchema")
+        properties = tool.inputSchema.get("properties", {})
+        assert "file_path" in properties
+        assert "output_dir" in properties
+        assert properties["file_path"]["type"] == "string"
+        assert properties["output_dir"]["type"] == "string"
 
 
 class TestListToolsImpl:

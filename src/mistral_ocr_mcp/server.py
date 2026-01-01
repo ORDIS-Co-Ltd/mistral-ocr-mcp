@@ -11,7 +11,7 @@ from .extraction import extract_markdown, extract_markdown_with_images
 mcp = FastMCP("Mistral OCR")
 
 
-@mcp.tool()
+@mcp.tool(name="extract_markdown")
 def extract_markdown_tool(file_path: str) -> str:
     """Extract markdown text from a PDF or image file.
 
@@ -24,7 +24,7 @@ def extract_markdown_tool(file_path: str) -> str:
     return extract_markdown(file_path)
 
 
-@mcp.tool()
+@mcp.tool(name="extract_markdown_with_images")
 def extract_markdown_with_images_tool(
     file_path: str, output_dir: str
 ) -> dict[str, Any]:

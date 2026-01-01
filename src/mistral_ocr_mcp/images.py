@@ -118,7 +118,13 @@ def save_base64_image(output_dir: Path, image_id: str, data_uri: str) -> str:
         if len(sanitized_id) > max_id_length:
             sanitized_id = sanitized_id[:max_id_length]
 
-        filename = f"{sanitized_id}{ext}"
+        # Don't append extension if image_id already ends with it (case-insensitive)
+        # This prevents duplicate extensions like image.jpeg.jpeg
+        if sanitized_id.lower().endswith(ext.lower()):
+            filename = sanitized_id
+        else:
+            filename = f"{sanitized_id}{ext}"
+
         output_path = output_dir / filename
 
         # Decode base64

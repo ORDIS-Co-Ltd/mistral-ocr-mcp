@@ -319,6 +319,67 @@ class TestSaveBase64Image:
         # We'll skip this for now as it requires unusual filesystem conditions
         pass
 
+    def test_image_id_with_extension_not_duplicated(self, tmp_path):
+        """Test that extension is not appended if image_id already has it."""
+        jpeg_data = (
+            "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////"
+        )
+        data_uri = f"data:image/jpeg;base64,{jpeg_data}"
+
+        # image_id already ends with .jpeg
+        filename = save_base64_image(tmp_path, "image.jpeg", data_uri)
+
+        assert filename == "image.jpeg"
+        saved_path = tmp_path / filename
+        assert saved_path.exists()
+        assert saved_path.is_file()
+
+    def test_image_id_with_case_insensitive_extension_not_duplicated(self, tmp_path):
+        """Test that extension check is case-insensitive."""
+        jpeg_data = (
+            "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////"
+        )
+        data_uri = f"data:image/jpeg;base64,{jpeg_data}"
+
+        # image_id ends with .JPEG (uppercase)
+        filename = save_base64_image(tmp_path, "image.JPEG", data_uri)
+
+        assert filename == "image.JPEG"
+        saved_path = tmp_path / filename
+        assert saved_path.exists()
+        assert saved_path.is_file()
+
+    def test_image_id_without_extension_appends_extension(self, tmp_path):
+        """Test that extension is appended when image_id doesn't have it."""
+        jpeg_data = (
+            "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////"
+        )
+        data_uri = f"data:image/jpeg;base64,{jpeg_data}"
+
+        # image_id does NOT end with extension
+        filename = save_base64_image(tmp_path, "image", data_uri)
+
+        assert filename == "image.jpeg"
+        saved_path = tmp_path / filename
+        assert saved_path.exists()
+        assert saved_path.is_file()
+
+    def test_image_id_with_different_extension_appends_correct_extension(
+        self, tmp_path
+    ):
+        """Test that extension is appended when image_id has a different extension."""
+        png_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        data_uri = f"data:image/png;base64,{png_data}"
+
+        # image_id ends with .jpg but MIME type is .png
+        filename = save_base64_image(tmp_path, "image.jpg", data_uri)
+
+        # Should append .png since .jpg != .png
+        assert filename == "image.jpg.png"
+        saved_path = tmp_path / filename
+        assert saved_path.exists()
+        assert saved_path.is_file()
+
 
 class TestSaveImages:
     """Tests for save_images function."""

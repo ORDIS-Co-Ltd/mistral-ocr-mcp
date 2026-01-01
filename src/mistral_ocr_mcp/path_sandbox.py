@@ -42,21 +42,28 @@ def validate_file_path(file_path: str) -> Path:
 
     # Check if absolute
     if not path.is_absolute():
-        raise PathValidationError(f"file_path must be an absolute path: {file_path}")
+        raise PathValidationError(
+            f"validate file_path: must be an absolute path: {file_path}"
+        )
 
     # Canonicalize and check existence
     try:
         resolved_path = path.resolve(strict=True)
     except FileNotFoundError:
-        raise PathValidationError(f"file_path does not exist: {file_path}")
+        raise PathValidationError(
+            f"validate file_path: resolve failed, path does not exist: {file_path}"
+        )
     except RuntimeError as e:
         # Can happen with infinite symlink loops
-        raise PathValidationError(f"Invalid file_path: {file_path} - {e}")
+        raise PathValidationError(
+            f"validate file_path: resolve failed: {file_path} - {e}"
+        )
 
     # Check extension
     if resolved_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
         raise PathValidationError(
-            "Unsupported file type. Supported types: .pdf, .png, .jpg, .jpeg, .webp, .gif"
+            f"validate file_path: unsupported file type '{resolved_path.suffix}'. "
+            f"Supported types: .pdf, .png, .jpg, .jpeg, .webp, .gif. Path: {file_path}"
         )
 
     return resolved_path
@@ -85,19 +92,27 @@ def validate_output_dir(
 
     # Check if absolute
     if not path.is_absolute():
-        raise PathValidationError(f"output_dir must be an absolute path: {output_dir}")
+        raise PathValidationError(
+            f"validate output_dir: must be an absolute path: {output_dir}"
+        )
 
     # Canonicalize and check existence
     try:
         resolved_path = path.resolve(strict=True)
     except FileNotFoundError:
-        raise PathValidationError(f"output_dir does not exist: {output_dir}")
+        raise PathValidationError(
+            f"validate output_dir: resolve failed, path does not exist: {output_dir}"
+        )
     except RuntimeError as e:
-        raise PathValidationError(f"Invalid output_dir: {output_dir} - {e}")
+        raise PathValidationError(
+            f"validate output_dir: resolve failed: {output_dir} - {e}"
+        )
 
     # Verify it's a directory
     if not resolved_path.is_dir():
-        raise PathValidationError(f"output_dir is not a directory: {output_dir}")
+        raise PathValidationError(
+            f"validate output_dir: path is not a directory: {output_dir}"
+        )
 
     # Check writability - try creating a temporary file
     try:
@@ -106,9 +121,13 @@ def validate_output_dir(
         temp_file.touch()
         temp_file.unlink()
     except PermissionError:
-        raise PathValidationError(f"output_dir is not writable: {output_dir}")
+        raise PathValidationError(
+            f"validate output_dir: writability check failed, directory not writable: {output_dir}"
+        )
     except OSError as e:
-        raise PathValidationError(f"Failed to check writability of {output_dir}: {e}")
+        raise PathValidationError(
+            f"validate output_dir: writability check failed: {output_dir} - {e}"
+        )
 
     # Sandbox enforcement: output_dir must be within allowed directory
     try:

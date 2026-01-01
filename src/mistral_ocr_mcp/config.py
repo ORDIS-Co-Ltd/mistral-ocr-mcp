@@ -56,6 +56,12 @@ def load_config() -> Config:
             "Missing required environment variable: MISTRAL_OCR_ALLOWED_DIR"
         )
 
+    # Verify it's an absolute path BEFORE canonicalization (SRS FR-5.3)
+    if not Path(allowed_dir_str).is_absolute():
+        raise ConfigurationError(
+            f"MISTRAL_OCR_ALLOWED_DIR must be an absolute path: {allowed_dir_str}"
+        )
+
     # Validate and canonicalize allowed directory
     try:
         allowed_dir = Path(allowed_dir_str).resolve(strict=True)
@@ -73,12 +79,6 @@ def load_config() -> Config:
     if not allowed_dir.is_dir():
         raise ConfigurationError(
             f"MISTRAL_OCR_ALLOWED_DIR is not a directory: {allowed_dir_str}"
-        )
-
-    # Verify it's an absolute path (resolve() should handle this, but double-check)
-    if not allowed_dir.is_absolute():
-        raise ConfigurationError(
-            f"MISTRAL_OCR_ALLOWED_DIR must be an absolute path: {allowed_dir_str}"
         )
 
     return Config(

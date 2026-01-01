@@ -33,14 +33,19 @@ class TestValidateFilePath:
         with pytest.raises(PathValidationError) as exc_info:
             validate_file_path("relative/path.txt")
 
+        assert "validate file_path" in str(exc_info.value)
         assert "absolute path" in str(exc_info.value)
+        assert "relative/path.txt" in str(exc_info.value)
 
     def test_nonexistent_file(self):
         """Test that nonexistent files are rejected."""
         with pytest.raises(PathValidationError) as exc_info:
             validate_file_path("/nonexistent/file.pdf")
 
+        assert "validate file_path" in str(exc_info.value)
+        assert "resolve failed" in str(exc_info.value)
         assert "does not exist" in str(exc_info.value)
+        assert "/nonexistent/file.pdf" in str(exc_info.value)
 
     def test_unsupported_extension(self, tmp_path):
         """Test that files with unsupported extensions are rejected."""
@@ -51,9 +56,12 @@ class TestValidateFilePath:
         with pytest.raises(PathValidationError) as exc_info:
             validate_file_path(str(test_file))
 
-        assert "Unsupported file type" in str(exc_info.value)
+        assert "validate file_path" in str(exc_info.value)
+        assert "unsupported file type" in str(exc_info.value)
+        assert ".txt" in str(exc_info.value)
         assert ".pdf" in str(exc_info.value)
         assert ".png" in str(exc_info.value)
+        assert str(test_file) in str(exc_info.value)
 
     def test_supported_pdf_file(self, tmp_path):
         """Test that .pdf files are accepted."""
@@ -131,14 +139,19 @@ class TestValidateOutputDir:
         with pytest.raises(PathValidationError) as exc_info:
             validate_output_dir("relative/path", Path("/tmp"), "/tmp")
 
+        assert "validate output_dir" in str(exc_info.value)
         assert "absolute path" in str(exc_info.value)
+        assert "relative/path" in str(exc_info.value)
 
     def test_nonexistent_directory(self):
         """Test that nonexistent directories are rejected."""
         with pytest.raises(PathValidationError) as exc_info:
             validate_output_dir("/nonexistent/directory", Path("/tmp"), "/tmp")
 
+        assert "validate output_dir" in str(exc_info.value)
+        assert "resolve failed" in str(exc_info.value)
         assert "does not exist" in str(exc_info.value)
+        assert "/nonexistent/directory" in str(exc_info.value)
 
     def test_file_instead_of_directory(self, tmp_path):
         """Test that files are rejected when a directory is expected."""
@@ -148,7 +161,9 @@ class TestValidateOutputDir:
         with pytest.raises(PathValidationError) as exc_info:
             validate_output_dir(str(test_file), Path("/tmp"), "/tmp")
 
-        assert "not a directory" in str(exc_info.value)
+        assert "validate output_dir" in str(exc_info.value)
+        assert "is not a directory" in str(exc_info.value)
+        assert str(test_file) in str(exc_info.value)
 
     def test_not_writable(self, tmp_path):
         """Test that non-writable directories are rejected."""
@@ -165,7 +180,10 @@ class TestValidateOutputDir:
                 with pytest.raises(PathValidationError) as exc_info:
                     validate_output_dir(str(test_dir), Path("/tmp"), "/tmp")
 
+                assert "validate output_dir" in str(exc_info.value)
+                assert "writability check failed" in str(exc_info.value)
                 assert "not writable" in str(exc_info.value)
+                assert str(test_dir) in str(exc_info.value)
             finally:
                 # Restore permissions
                 test_dir.chmod(original_mode)

@@ -60,9 +60,10 @@ class TestLoadConfig:
             load_config()
 
         assert "not a directory" in str(exc_info.value)
+        assert "is not a directory" in str(exc_info.value)
 
-    def test_canonicalization_handles_relative_path(self, monkeypatch, tmp_path):
-        """Test that relative paths are canonicalized to absolute."""
+    def test_allowed_dir_relative_path_rejected(self, monkeypatch, tmp_path):
+        """Test that ConfigurationError is raised when allowed dir is relative (SRS FR-5.3)."""
         # Use a relative path to a directory that exists
         relative_dir = "subdir"
         (tmp_path / relative_dir).mkdir()
@@ -72,12 +73,12 @@ class TestLoadConfig:
         monkeypatch.setenv("MISTRAL_API_KEY", "test-api-key")
         monkeypatch.setenv("MISTRAL_OCR_ALLOWED_DIR", relative_dir)
 
-        config = load_config()
+        with pytest.raises(ConfigurationError) as exc_info:
+            load_config()
 
-        # resolve() will convert relative to absolute
-        assert config.allowed_dir_resolved == (tmp_path / relative_dir).resolve()
-        # Original should be the relative path
-        assert config.allowed_dir_original == relative_dir
+        # Should be rejected because it's relative
+        assert "must be an absolute path" in str(exc_info.value)
+        assert relative_dir in str(exc_info.value)
 
     def test_successful_config_load(self, monkeypatch, tmp_path):
         """Test successful configuration loading."""

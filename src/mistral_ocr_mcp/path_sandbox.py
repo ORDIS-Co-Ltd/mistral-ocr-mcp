@@ -5,6 +5,7 @@ ensuring they are within the allowed directory sandbox.
 """
 
 import os
+import tempfile
 from pathlib import Path
 from typing import Set
 
@@ -116,10 +117,11 @@ def validate_output_dir(
 
     # Check writability - try creating a temporary file
     try:
-        # Use a unique filename to avoid collisions
-        temp_file = resolved_path / f".write_test_{os.getpid()}"
-        temp_file.touch()
-        temp_file.unlink()
+        # Use mkstemp to create a unique temporary file atomically
+        # This avoids predictable filenames and doesn't follow pre-existing symlinks
+        fd, temp_path = tempfile.mkstemp(dir=str(resolved_path))
+        os.close(fd)
+        os.unlink(temp_path)
     except PermissionError:
         raise PathValidationError(
             f"validate output_dir: writability check failed, directory not writable: {output_dir}"

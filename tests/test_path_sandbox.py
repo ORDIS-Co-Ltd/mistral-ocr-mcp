@@ -199,8 +199,10 @@ class TestValidateOutputDir:
         with pytest.raises(PathValidationError) as exc_info:
             validate_output_dir(str(output_dir), allowed_dir, "/allowed/original")
 
-        assert "output_dir must be within the allowed directory" in str(exc_info.value)
-        assert "/allowed/original" in str(exc_info.value)
+        assert (
+            str(exc_info.value)
+            == "output_dir must be within the allowed directory: /allowed/original"
+        )
 
     def test_parent_traversal_attack(self, tmp_path):
         """Test that .. traversal attacks are blocked."""
@@ -215,7 +217,10 @@ class TestValidateOutputDir:
             validate_output_dir(output_dir_str, allowed_dir.resolve(), str(allowed_dir))
 
         # The error should mention the original allowed dir string
-        assert "output_dir must be within the allowed directory" in str(exc_info.value)
+        assert (
+            str(exc_info.value)
+            == f"output_dir must be within the allowed directory: {allowed_dir}"
+        )
 
     def test_success_exact_match(self, tmp_path):
         """Test that exact match to allowed dir is accepted."""
@@ -240,3 +245,36 @@ class TestValidateOutputDir:
         result = validate_output_dir(str(nested), tmp_path, "/tmp/original")
 
         assert result == nested.resolve()
+
+    def test_symlink_escape(self, tmp_path):
+        """Test that symlinks pointing outside allowed dir are rejected."""
+        # Skip on Windows where symlink support may be limited
+        if os.name == "nt":
+            pytest.skip("symlinks not supported on Windows")
+
+        # Create allowed_dir (real directory)
+        allowed_dir = tmp_path / "allowed"
+        allowed_dir.mkdir()
+
+        # Create outside_dir (sibling)
+        outside_dir = tmp_path / "outside"
+        outside_dir.mkdir()
+
+        # Create symlink from allowed_dir/link to outside_dir
+        link_path = allowed_dir / "link"
+        try:
+            link_path.symlink_to(outside_dir)
+        except (OSError, NotImplementedError) as e:
+            pytest.skip(f"symlink creation not supported: {e}")
+
+        # Passing output_dir=allowed_dir/link should be rejected
+        # because it resolves outside allowed_dir
+        with pytest.raises(PathValidationError) as exc_info:
+            validate_output_dir(
+                str(link_path), allowed_dir.resolve(), "/allowed/original"
+            )
+
+        assert (
+            str(exc_info.value)
+            == "output_dir must be within the allowed directory: /allowed/original"
+        )

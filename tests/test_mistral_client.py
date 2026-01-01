@@ -44,36 +44,29 @@ class _OCRAPI:
         return {"ok": True}
 
 
-def _install_dummy_client(monkeypatch, *, api_key: str, recorder: dict):
-    class _DummyMistral:
-        def __init__(self, *, api_key: str):
-            recorder["api_key"] = api_key
+def _make_injected_client(*, recorder: dict):
+    class _InjectedMistral:
+        def __init__(self):
             self.files = _FilesAPI(recorder)
             self.ocr = _OCRAPI(recorder)
 
-    monkeypatch.setattr(mistral_client, "Mistral", _DummyMistral)
-
-    def _fake_load_config():
-        return Config(
-            api_key=api_key,
-            allowed_dir_original="/allowed",
-            allowed_dir_resolved=Path("/allowed"),
-        )
-
-    monkeypatch.setattr(mistral_client, "load_config", _fake_load_config)
+    return _InjectedMistral()
 
 
-def test_process_local_file_pdf_uses_document_url(monkeypatch, tmp_path):
+def test_process_local_file_pdf_uses_document_url(tmp_path):
     recorder: dict = {}
-    _install_dummy_client(monkeypatch, api_key="test-key", recorder=recorder)
+    injected = _make_injected_client(recorder=recorder)
 
     input_path = tmp_path / "doc.PDF"
     input_path.write_bytes(b"%PDF-1.4\n")
 
-    res = mistral_client.process_local_file(input_path, include_image_base64=True)
+    res = mistral_client.process_local_file(
+        input_path,
+        include_image_base64=True,
+        client=injected,
+    )
 
     assert res == {"ok": True}
-    assert recorder["api_key"] == "test-key"
 
     upload_file, upload_purpose = recorder["upload"]
     assert upload_purpose == "ocr"
@@ -93,18 +86,38 @@ def test_process_local_file_pdf_uses_document_url(monkeypatch, tmp_path):
     assert include_image_base64 is True
 
 
-def test_process_local_file_image_uses_image_url(monkeypatch, tmp_path):
+def test_process_local_file_image_uses_image_url(tmp_path):
     recorder: dict = {}
-    _install_dummy_client(monkeypatch, api_key="test-key", recorder=recorder)
+    injected = _make_injected_client(recorder=recorder)
 
     input_path = tmp_path / "image.png"
     input_path.write_bytes(b"\x89PNG\r\n\x1a\n")
 
-    mistral_client.process_local_file(input_path, include_image_base64=False)
+    mistral_client.process_local_file(
+        input_path,
+        include_image_base64=False,
+        client=injected,
+    )
 
     _, document, include_image_base64 = recorder["process"]
     assert document == {"type": "image_url", "image_url": "https://example.test/signed"}
     assert include_image_base64 is False
+
+
+def test_injected_client_does_not_require_config(monkeypatch, tmp_path):
+    recorder: dict = {}
+    injected = _make_injected_client(recorder=recorder)
+
+    # If a client is injected, the adapter must not read env/config.
+    def _fail_load_config():
+        raise AssertionError("load_config called")
+
+    monkeypatch.setattr(mistral_client, "load_config", _fail_load_config)
+
+    input_path = tmp_path / "doc.pdf"
+    input_path.write_bytes(b"%PDF-1.4\n")
+
+    mistral_client.process_local_file(input_path, client=injected)
 
 
 def test_mistral_error_wrapped_with_status_code(monkeypatch, tmp_path):
@@ -125,8 +138,16 @@ def test_mistral_error_wrapped_with_status_code(monkeypatch, tmp_path):
     class _FailingMistral:
         def __init__(self, *, api_key: str):
             recorder["api_key"] = api_key
+            recorder["closed"] = False
             self.files = _FailingFilesAPI(recorder)
             self.ocr = _OCRAPI(recorder)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            recorder["closed"] = True
+            return False
 
     monkeypatch.setattr(mistral_client, "Mistral", _FailingMistral)
     monkeypatch.setattr(
@@ -149,3 +170,38 @@ def test_mistral_error_wrapped_with_status_code(monkeypatch, tmp_path):
     assert "status=401" in message
     assert "Unauthorized" in message
     assert "should-not-leak" not in message
+    assert recorder["closed"] is True
+
+
+def test_sdk_error_is_wrapped(monkeypatch, tmp_path):
+    recorder: dict = {}
+
+    class _DummySDKError(Exception):
+        def __init__(self, *, status_code: int, message: str):
+            super().__init__(message)
+            self.status_code = status_code
+            self.message = message
+
+    # Some mistralai versions expose SDKError; ensure we cover it when present.
+    monkeypatch.setattr(
+        mistral_client.models, "SDKError", _DummySDKError, raising=False
+    )
+
+    class _FailingOCRAPI(_OCRAPI):
+        def process(self, *, model, document, include_image_base64):
+            raise _DummySDKError(status_code=503, message="Service Unavailable")
+
+    class _InjectedMistral:
+        def __init__(self):
+            self.files = _FilesAPI(recorder)
+            self.ocr = _FailingOCRAPI(recorder)
+
+    input_path = tmp_path / "doc.pdf"
+    input_path.write_bytes(b"%PDF-1.4\n")
+
+    with pytest.raises(mistral_client.MistralOCRAPIError) as exc_info:
+        mistral_client.process_local_file(input_path, client=_InjectedMistral())
+
+    message = str(exc_info.value)
+    assert "status=503" in message
+    assert "Service Unavailable" in message

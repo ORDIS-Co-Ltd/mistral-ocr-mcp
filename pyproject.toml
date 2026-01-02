@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mistral-ocr--mcp"
-version = "0.1.0"
+name = "mistral-ocr-mcp"
+version = "0.1.3"
 description = "MCP server for extracting text and images from documents using Mistral OCR API"
 readme = "README.md"
 requires-python = ">=3.10"

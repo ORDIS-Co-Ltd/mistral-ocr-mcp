@@ -19,7 +19,7 @@ Run the server directly with `uvx` (no installation required):
 ```bash
 MISTRAL_API_KEY="your-api-key-here" \
 MISTRAL_OCR_ALLOWED_DIR="/absolute/path/to/allowed/directory" \
-uvx mistral-ocr--mcp
+uvx mistral-ocr-mcp
 ```
 
 **Important**: `MISTRAL_OCR_ALLOWED_DIR` must be:
@@ -38,13 +38,13 @@ The server will start in stdio mode and wait for MCP client connections.
 Install via pip:
 
 ```bash
-pip install mistral-ocr--mcp
+pip install mistral-ocr-mcp
 ```
 
 Then configure your MCP client (e.g., Claude Desktop) to run:
 
 ```bash
-mistral-ocr--mcp
+mistral-ocr-mcp
 ```
 
 ### For Development
@@ -112,7 +112,7 @@ Add this to your `claude_desktop_config.json`:
   "mcpServers": {
     "mistral-ocr": {
       "command": "uvx",
-      "args": ["mistral-ocr--mcp"],
+      "args": ["mistral-ocr-mcp"],
       "env": {
         "MISTRAL_API_KEY": "your-api-key-here",
         "MISTRAL_OCR_ALLOWED_DIR": "/absolute/path/to/allowed/directory"
@@ -131,7 +131,7 @@ Add this to the `mcp` section of your configuration file:
   "mcp": {
     "mistral-ocr": {
       "type": "local",
-      "command": ["uvx", "mistral-ocr--mcp"],
+      "command": ["uvx", "mistral-ocr-mcp"],
       "enabled": true,
       "environment": {
         "MISTRAL_API_KEY": "your-api-key-here",
@@ -147,7 +147,7 @@ Add this to the `mcp` section of your configuration file:
 If you use the Codex CLI, you can add the server with:
 
 ```bash
-codex mcp add mistral-ocr -- uvx mistral-ocr--mcp
+codex mcp add mistral-ocr -- uvx mistral-ocr-mcp
 ```
 
 Make sure the environment variables `MISTRAL_API_KEY` and `MISTRAL_OCR_ALLOWED_DIR` are set in your shell environment.
@@ -269,7 +269,7 @@ from mcp.client.stdio import stdio_client
 
 async def extract_document():
     server_params = StdioServerParameters(
-        command="mistral-ocr--mcp",
+        command="mistral-ocr-mcp",
         env={
             "MISTRAL_API_KEY": "your-api-key",
             "MISTRAL_OCR_ALLOWED_DIR": "/Users/username/workdir"

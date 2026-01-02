@@ -19,7 +19,7 @@ Run the server directly with `uvx` (no installation required):
 ```bash
 MISTRAL_API_KEY="your-api-key-here" \
 MISTRAL_OCR_ALLOWED_DIR="/absolute/path/to/allowed/directory" \
-uvx mistral-ocr-mcp
+uvx mistral-ocr--mcp
 ```
 
 **Important**: `MISTRAL_OCR_ALLOWED_DIR` must be:
@@ -38,13 +38,13 @@ The server will start in stdio mode and wait for MCP client connections.
 Install via pip:
 
 ```bash
-pip install mistral-ocr-mcp
+pip install mistral-ocr--mcp
 ```
 
 Then configure your MCP client (e.g., Claude Desktop) to run:
 
 ```bash
-mistral-ocr-mcp
+mistral-ocr--mcp
 ```
 
 ### For Development
@@ -52,7 +52,7 @@ mistral-ocr-mcp
 Clone the repository and install with development dependencies:
 
 ```bash
-git clone https://github.com/ordis/mistral-ocr-multimedia-mcp
+git clone https://github.com/ORDIS-Co-Ltd/mistral-ocr-mcp
 cd mistral-ocr-multimedia-mcp
 pip install -e '.[dev]'
 ```
@@ -74,7 +74,7 @@ python -m mistral_ocr_mcp
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `MISTRAL_API_KEY` | Your Mistral API key (never logged) | `sk-abc123...` |
-| `MISTRAL_OCR_ALLOWED_DIR` | Absolute path to allowed write directory | `/Users/ben/Development` |
+| `MISTRAL_OCR_ALLOWED_DIR` | Absolute path to allowed write directory | `/Users/username/workdir` |
 
 ### Security Sandbox
 
@@ -87,14 +87,70 @@ The server enforces a **write directory sandbox** to prevent unauthorized file w
 
 | `MISTRAL_OCR_ALLOWED_DIR` | `output_dir` | Result |
 |---------------------------|--------------|--------|
-| `/Users/ben/Development` | `/Users/ben/Development/project/output` | ✅ Allowed |
-| `/Users/ben/Development` | `/Users/ben/Development` | ✅ Allowed (exact match) |
-| `/Users/ben/Development` | `/Users/ben/Documents` | ❌ Rejected |
-| `/Users/ben/Development` | `/Users/ben/Development/../Documents` | ❌ Rejected (resolves outside) |
+| `/Users/username/workdir` | `/Users/username/workdir/project/output` | ✅ Allowed |
+| `/Users/username/workdir` | `/Users/username/workdir` | ✅ Allowed (exact match) |
+| `/Users/username/workdir` | `/Users/username/documents` | ❌ Rejected |
+| `/Users/username/workdir` | `/Users/username/workdir/../documents` | ❌ Rejected (resolves outside) |
 
 **Security Notes:**
 - All paths are canonicalized (symlinks resolved, `..` eliminated) before validation
 - Image filenames are sanitized to prevent path traversal attacks
+
+---
+
+## Client Configuration
+
+### Claude Desktop
+
+Add this to your `claude_desktop_config.json`:
+
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "mistral-ocr": {
+      "command": "uvx",
+      "args": ["mistral-ocr--mcp"],
+      "env": {
+        "MISTRAL_API_KEY": "your-api-key-here",
+        "MISTRAL_OCR_ALLOWED_DIR": "/absolute/path/to/allowed/directory"
+      }
+    }
+  }
+}
+```
+
+### OpenCode
+
+Add this to the `mcp` section of your configuration file:
+
+```json
+{
+  "mcp": {
+    "mistral-ocr": {
+      "type": "local",
+      "command": ["uvx", "mistral-ocr--mcp"],
+      "enabled": true,
+      "environment": {
+        "MISTRAL_API_KEY": "your-api-key-here",
+        "MISTRAL_OCR_ALLOWED_DIR": "/absolute/path/to/allowed/directory"
+      }
+    }
+  }
+}
+```
+
+### Codex
+
+If you use the Codex CLI, you can add the server with:
+
+```bash
+codex mcp add mistral-ocr -- uvx mistral-ocr--mcp
+```
+
+Make sure the environment variables `MISTRAL_API_KEY` and `MISTRAL_OCR_ALLOWED_DIR` are set in your shell environment.
 
 ---
 
@@ -130,7 +186,7 @@ Returns a single string containing concatenated markdown from all pages.
 {
   "tool": "extract_markdown",
   "arguments": {
-    "file_path": "/Users/ben/documents/report.pdf"
+    "file_path": "/Users/username/documents/report.pdf"
   }
 }
 ```
@@ -184,8 +240,8 @@ Extract markdown content **and** save embedded images to disk.
 {
   "tool": "extract_markdown_with_images",
   "arguments": {
-    "file_path": "/Users/ben/documents/quarterly-report.pdf",
-    "output_dir": "/Users/ben/Development/extracted"
+    "file_path": "/Users/username/documents/quarterly-report.pdf",
+    "output_dir": "/Users/username/workdir/extracted"
   }
 }
 ```
@@ -193,7 +249,7 @@ Extract markdown content **and** save embedded images to disk.
 **Output Structure:**
 
 ```
-/Users/ben/Development/extracted/
+/Users/username/workdir/extracted/
   quarterly-report/
     content.md          # Markdown with relative image links
     img_abc123.png      # First extracted image
@@ -213,10 +269,10 @@ from mcp.client.stdio import stdio_client
 
 async def extract_document():
     server_params = StdioServerParameters(
-        command="mistral-ocr-mcp",
+        command="mistral-ocr--mcp",
         env={
             "MISTRAL_API_KEY": "your-api-key",
-            "MISTRAL_OCR_ALLOWED_DIR": "/Users/ben/Development"
+            "MISTRAL_OCR_ALLOWED_DIR": "/Users/username/workdir"
         }
     )
     
@@ -236,7 +292,7 @@ async def extract_document():
                 "extract_markdown_with_images",
                 arguments={
                     "file_path": "/path/to/document.pdf",
-                    "output_dir": "/Users/ben/Development/output"
+                    "output_dir": "/Users/username/workdir/output"
                 }
             )
             print(result.content[0].text)
@@ -255,13 +311,15 @@ asyncio.run(extract_document())
 | `MISTRAL_OCR_ALLOWED_DIR must be an absolute path` | Relative path provided (e.g., `~/documents`) | Use an absolute path (e.g., `/Users/username/documents`) |
 | `MISTRAL_OCR_ALLOWED_DIR does not exist` | Directory does not exist on filesystem | Create the directory first: `mkdir -p /path/to/dir` |
 | `MISTRAL_OCR_ALLOWED_DIR is not a directory` | Path points to a file, not a directory | Ensure the path is a directory |
+| `validate file_path: must be an absolute path: {path}` | Relative path provided for input file | Use an absolute path (e.g., `/Users/username/file.pdf`) |
+| `validate file_path: resolve failed, path does not exist: {path}` | Input file does not exist | Check the file path and ensure the file exists |
+| `validate file_path: unsupported file type '{suffix}'. Supported types: ...` | File extension not supported | Use `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp`, or `.gif` |
+| `validate output_dir: resolve failed, path does not exist: {path}` | Output directory does not exist | Create the directory first: `mkdir -p {path}` |
+| `validate output_dir: path is not a directory: {path}` | Path points to a file, not a directory | Ensure the path is a directory |
+| `validate output_dir: writability check failed, directory not writable: {path}` | Output directory exists but is not writable | Check directory permissions: `chmod u+w {path}` |
 | `output_dir must be within the allowed directory` | `output_dir` is outside `MISTRAL_OCR_ALLOWED_DIR` | Use a path within the allowed directory |
-| `file_path must be an absolute path` | Relative path provided for input file | Use an absolute path (e.g., `/Users/username/file.pdf`) |
-| `Unsupported file type` | File extension not supported | Use `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp`, or `.gif` |
-| `File not found` | Input file does not exist | Check the file path and ensure the file exists |
-| `output_dir does not exist or is not a directory` | Output directory invalid | Ensure the directory exists before calling the tool |
-| `Mistral API error: 401` | Invalid API key | Check your `MISTRAL_API_KEY` |
-| `Mistral API error: 429` | Rate limit exceeded | Wait and retry, or check your API quota |
+| `Mistral OCR request failed (status=401): {message}` | Invalid API key | Check your `MISTRAL_API_KEY` |
+| `Mistral OCR request failed (status=429): {message}` | Rate limit exceeded | Wait and retry, or check your API quota |
 
 ---
 
@@ -329,6 +387,6 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ## Links
 
-- **GitHub Repository**: https://github.com/ordis/mistral-ocr-multimedia-mcp
+- **GitHub Repository**: https://github.com/ORDIS-Co-Ltd/mistral-ocr-mcp
 - **MCP Specification**: https://modelcontextprotocol.io
 - **Mistral AI**: https://mistral.ai

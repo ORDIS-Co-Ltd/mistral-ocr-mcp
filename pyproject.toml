@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mistral-ocr-mcp"
+name = "mistral-ocr--mcp"
 version = "0.1.0"
 description = "MCP server for extracting text and images from documents using Mistral OCR API"
 readme = "README.md"
@@ -27,8 +27,8 @@ dev = [
 mistral-ocr-mcp = "mistral_ocr_mcp.__main__:main"
 
 [project.urls]
-Homepage = "https://github.com/ordis/mistral-ocr-multimedia-mcp"
-Repository = "https://github.com/ordis/mistral-ocr-multimedia-mcp"
+Homepage = "https://github.com/ORDIS-Co-Ltd/mistral-ocr-mcp"
+Repository = "https://github.com/ORDIS-Co-Ltd/mistral-ocr-mcp"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mistral_ocr_mcp"]

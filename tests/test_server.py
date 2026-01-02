@@ -82,6 +82,25 @@ class TestMCPToolRegistration:
         assert properties["file_path"]["type"] == "string"
         assert properties["output_dir"]["type"] == "string"
 
+    def test_extract_markdown_with_images_tool_description_includes_existence_hint(
+        self,
+    ):
+        """Test that extract_markdown_with_images tool description includes existence hint."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def find_extract_markdown_with_images_tool():
+            tools = await mcp.list_tools()
+            for tool in tools:
+                if tool.name == "extract_markdown_with_images":
+                    return tool
+            return None
+
+        tool = asyncio.run(find_extract_markdown_with_images_tool())
+        assert tool is not None
+        assert tool.description is not None
+        assert "exist" in tool.description.lower()
+
 
 class TestListToolsImpl:
     """Tests for list_tools_impl function."""

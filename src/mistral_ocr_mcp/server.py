@@ -32,7 +32,7 @@ def extract_markdown_with_images_tool(
 
     Args:
         file_path: Absolute path to the input file (PDF or image)
-        output_dir: Absolute path to the output directory (must be within allowed dir)
+        output_dir: Absolute path to an existing output directory (must be within allowed dir)
 
     Returns:
         Dictionary with:

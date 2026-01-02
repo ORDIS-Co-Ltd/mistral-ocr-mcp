@@ -12,92 +12,6 @@ A Model Context Protocol (MCP) server that provides tools for extracting text an
 
 ---
 
-## Quickstart
-
-Run the server directly with `uvx` (no installation required):
-
-```bash
-MISTRAL_API_KEY="your-api-key-here" \
-MISTRAL_OCR_ALLOWED_DIR="/absolute/path/to/allowed/directory" \
-uvx mistral-ocr-mcp
-```
-
-**Important**: `MISTRAL_OCR_ALLOWED_DIR` must be:
-- An **absolute path** (e.g., `/Users/username/documents`, not `~/documents`)
-- An **existing directory** on your filesystem
-- The location where you want to allow the server to write extracted images
-
-The server will start in stdio mode and wait for MCP client connections.
-
----
-
-## Installation
-
-### For Use with MCP Clients
-
-Install via pip:
-
-```bash
-pip install mistral-ocr-mcp
-```
-
-Then configure your MCP client (e.g., Claude Desktop) to run:
-
-```bash
-mistral-ocr-mcp
-```
-
-### For Development
-
-Clone the repository and install with development dependencies:
-
-```bash
-git clone https://github.com/ORDIS-Co-Ltd/mistral-ocr-mcp
-cd mistral-ocr-multimedia-mcp
-pip install -e '.[dev]'
-```
-
-Run the server:
-
-```bash
-MISTRAL_API_KEY="your-key" \
-MISTRAL_OCR_ALLOWED_DIR="/path/to/allowed/dir" \
-python -m mistral_ocr_mcp
-```
-
----
-
-## Configuration
-
-### Required Environment Variables
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `MISTRAL_API_KEY` | Your Mistral API key (never logged) | `sk-abc123...` |
-| `MISTRAL_OCR_ALLOWED_DIR` | Absolute path to allowed write directory | `/Users/username/workdir` |
-
-### Security Sandbox
-
-The server enforces a **write directory sandbox** to prevent unauthorized file writes:
-
-- **`extract_markdown`**: No write restrictions (read-only operation)
-- **`extract_markdown_with_images`**: The `output_dir` parameter **must** be within `MISTRAL_OCR_ALLOWED_DIR`
-
-**Validation Examples:**
-
-| `MISTRAL_OCR_ALLOWED_DIR` | `output_dir` | Result |
-|---------------------------|--------------|--------|
-| `/Users/username/workdir` | `/Users/username/workdir/project/output` | ✅ Allowed |
-| `/Users/username/workdir` | `/Users/username/workdir` | ✅ Allowed (exact match) |
-| `/Users/username/workdir` | `/Users/username/documents` | ❌ Rejected |
-| `/Users/username/workdir` | `/Users/username/workdir/../documents` | ❌ Rejected (resolves outside) |
-
-**Security Notes:**
-- All paths are canonicalized (symlinks resolved, `..` eliminated) before validation
-- Image filenames are sanitized to prevent path traversal attacks
-
----
-
 ## Client Configuration
 
 ### Claude Desktop
@@ -151,6 +65,37 @@ codex mcp add mistral-ocr -- uvx mistral-ocr-mcp
 ```
 
 Make sure the environment variables `MISTRAL_API_KEY` and `MISTRAL_OCR_ALLOWED_DIR` are set in your shell environment.
+
+---
+
+## Configuration
+
+### Required Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `MISTRAL_API_KEY` | Your Mistral API key (never logged) | `sk-abc123...` |
+| `MISTRAL_OCR_ALLOWED_DIR` | Absolute path to allowed write directory | `/Users/username/workdir` |
+
+### Security Sandbox
+
+The server enforces a **write directory sandbox** to prevent unauthorized file writes:
+
+- **`extract_markdown`**: No write restrictions (read-only operation)
+- **`extract_markdown_with_images`**: The `output_dir` parameter **must** be within `MISTRAL_OCR_ALLOWED_DIR`
+
+**Validation Examples:**
+
+| `MISTRAL_OCR_ALLOWED_DIR` | `output_dir` | Result |
+|---------------------------|--------------|--------|
+| `/Users/username/workdir` | `/Users/username/workdir/project/output` | ✅ Allowed |
+| `/Users/username/workdir` | `/Users/username/workdir` | ✅ Allowed (exact match) |
+| `/Users/username/workdir` | `/Users/username/documents` | ❌ Rejected |
+| `/Users/username/workdir` | `/Users/username/workdir/../documents` | ❌ Rejected (resolves outside) |
+
+**Security Notes:**
+- All paths are canonicalized (symlinks resolved, `..` eliminated) before validation
+- Image filenames are sanitized to prevent path traversal attacks
 
 ---
 
@@ -325,36 +270,34 @@ asyncio.run(extract_document())
 
 ## Development
 
-### Install Development Dependencies
+### Setup
+
+Clone the repository and install with development dependencies:
 
 ```bash
+git clone https://github.com/ORDIS-Co-Ltd/mistral-ocr-mcp
+cd mistral-ocr-mcp
 pip install -e '.[dev]'
 ```
 
-### Run Tests
+Run the server locally:
 
-Run the full test suite:
+```bash
+MISTRAL_API_KEY="your-key" \
+MISTRAL_OCR_ALLOWED_DIR="/path/to/allowed/dir" \
+python -m mistral_ocr_mcp
+```
+
+### Run Tests
 
 ```bash
 pytest
 ```
 
-Run tests with verbose output:
-
-```bash
-pytest -v
-```
-
-Run tests in quiet mode:
-
-```bash
-pytest -q
-```
-
 ### Project Structure
 
 ```
-mistral-ocr-multimedia-mcp/
+mistral-ocr-mcp/
 ├── src/
 │   └── mistral_ocr_mcp/
 │       ├── __init__.py

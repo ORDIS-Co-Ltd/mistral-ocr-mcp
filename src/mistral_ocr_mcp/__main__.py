@@ -12,6 +12,8 @@ def main() -> int:
         load_config()
         run()
         return 0
+    except KeyboardInterrupt:
+        return 0
     except ConfigurationError as e:
         print(f"Configuration error: {e}", file=sys.stderr)
         return 1

@@ -83,4 +83,7 @@ def run() -> None:
 
     This is a synchronous wrapper that starts the stdio server.
     """
-    mcp.run()
+    try:
+        mcp.run()
+    except KeyboardInterrupt:
+        pass

@@ -14,7 +14,8 @@ from types import SimpleNamespace
 from typing import Any, Optional
 
 try:
-    from mistralai import Mistral, models
+    from mistralai.client import Mistral
+    from mistralai import models
 except ModuleNotFoundError:  # pragma: no cover
     # Allow offline unit tests to inject a fake client without requiring the SDK.
     Mistral = None  # type: ignore[assignment]

@@ -15,7 +15,8 @@ from typing import Any, Optional
 
 try:
     from mistralai.client import Mistral
-    from mistralai.models import OCRResponse, SDKError
+    from mistralai.client.models import OCRResponse
+    from mistralai.client.errors import SDKError
 
     models = SimpleNamespace(
         OCRResponse=OCRResponse,

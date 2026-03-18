@@ -15,7 +15,13 @@ from typing import Any, Optional
 
 try:
     from mistralai.client import Mistral
-    from mistralai import models
+    from mistralai.models import OCRResponse, SDKError
+
+    models = SimpleNamespace(
+        OCRResponse=OCRResponse,
+        MistralError=Exception,
+        SDKError=SDKError,
+    )
 except ModuleNotFoundError:  # pragma: no cover
     # Allow offline unit tests to inject a fake client without requiring the SDK.
     Mistral = None  # type: ignore[assignment]

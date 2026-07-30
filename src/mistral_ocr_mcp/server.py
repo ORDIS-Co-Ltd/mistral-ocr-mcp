@@ -7,10 +7,10 @@ from mcp.server.mcpserver import MCPServer
 from .extraction import (
     ExtractMarkdownWithImagesResult,
     extract_from_url,
+    extract_from_url_with_images,
     extract_markdown,
     extract_markdown_advanced,
     extract_markdown_with_images,
-    extract_tables,
     ocr_status,
 )
 
@@ -20,40 +20,38 @@ mcp = MCPServer("Mistral OCR")
 
 
 @mcp.tool(name="extract_markdown")
-def extract_markdown_tool(file_path: str) -> str:
+def extract_markdown_tool(
+    file_path: str,
+    output_dir: Optional[str] = None,
+    include_images: bool = False,
+) -> ExtractMarkdownWithImagesResult:
     """Extract markdown text from a PDF or image file.
+
+    When ``include_images`` is True and ``output_dir`` is provided, saves
+    extracted images to disk and returns metadata. Otherwise returns the
+    markdown text under the ``result`` key.
 
     Args:
         file_path: Absolute path to the input file (PDF or image)
+        output_dir: Absolute path to an existing output directory (must be
+            within allowed dir). Required when include_images is True.
+        include_images: When True and output_dir is set, save images to disk
 
     Returns:
-        Extracted markdown content as a string
+        When include_images is False:
+            result: Extracted markdown content
+        When include_images is True:
+            output_directory: Absolute path to the output subdirectory
+            markdown_file: Absolute path to the content.md file
+            images: List of saved image filenames
     """
+    if include_images and output_dir:
+        return extract_markdown_with_images(file_path, output_dir)
     return extract_markdown(file_path)
 
 
-@mcp.tool(name="extract_markdown_with_images")
-def extract_markdown_with_images_tool(
-    file_path: str, output_dir: str
-) -> ExtractMarkdownWithImagesResult:
-    """Extract markdown with embedded images and save them as separate files.
-
-    Args:
-        file_path: Absolute path to the input file (PDF or image)
-        output_dir: Absolute path to an existing output directory (must be within allowed dir)
-
-    Returns:
-        Dictionary with:
-            - output_directory: Absolute path to the output subdirectory
-            - markdown_file: Absolute path to the content.md file
-            - images: List of saved image filenames (not full paths)
-    """
-    result = extract_markdown_with_images(file_path, output_dir)
-    return result
-
-
-@mcp.tool(name="process_url")
-def process_url_tool(
+@mcp.tool(name="extract_markdown_from_url")
+def extract_markdown_from_url_tool(
     file_url: str,
     include_image_base64: bool = False,
 ) -> str:
@@ -70,6 +68,31 @@ def process_url_tool(
         Extracted markdown content as a string
     """
     return extract_from_url(file_url, include_image_base64=include_image_base64)
+
+
+@mcp.tool(name="extract_markdown_from_url_with_images")
+def extract_markdown_from_url_with_images_tool(
+    file_url: str,
+    output_dir: str,
+) -> ExtractMarkdownWithImagesResult:
+    """Extract markdown from a URL and save embedded images to disk.
+
+    Processes a PDF or image from a URL, saves extracted images to
+    the output directory, and rewrites the markdown with relative
+    image paths.
+
+    Args:
+        file_url: Publicly accessible URL to a PDF or image
+        output_dir: Absolute path to an existing output directory (must be within
+            the allowed directory from config)
+
+    Returns:
+        Dictionary with:
+            - output_directory: Absolute path to the output subdirectory
+            - markdown_file: Absolute path to the content.md file
+            - images: List of saved image filenames (not full paths)
+    """
+    return extract_from_url_with_images(file_url, output_dir)
 
 
 @mcp.tool(name="extract_markdown_advanced")
@@ -98,26 +121,6 @@ def extract_markdown_advanced_tool(
     )
 
 
-@mcp.tool(name="extract_tables")
-def extract_tables_tool(
-    file_path: str,
-    table_format: str = "markdown",
-) -> list[dict[str, Any]]:
-    """Extract tables from a PDF or image file.
-
-    Processes the file through OCR and returns all detected tables
-    from all pages.
-
-    Args:
-        file_path: Absolute path to the input file (PDF or image)
-        table_format: Output format for tables ("markdown" or "html", default: "markdown")
-
-    Returns:
-        List of tables, each with page_index, table_id, content, and format
-    """
-    return extract_tables(file_path, table_format=table_format)
-
-
 @mcp.tool(name="ocr_status")
 def ocr_status_tool() -> dict[str, str]:
     """Check Mistral API connectivity and key validity.
@@ -135,10 +138,9 @@ def list_tools_impl() -> list[str]:
     """List available tool names for testing purposes."""
     return [
         "extract_markdown",
-        "extract_markdown_with_images",
-        "process_url",
+        "extract_markdown_from_url",
+        "extract_markdown_from_url_with_images",
         "extract_markdown_advanced",
-        "extract_tables",
         "ocr_status",
     ]
 
@@ -159,21 +161,27 @@ def call_tool_impl(name: str, arguments: dict[str, Any]) -> Any:
     if name == "extract_markdown":
         if "file_path" not in arguments:
             raise ValueError("Missing required argument: file_path")
+        if arguments.get("include_images") and "output_dir" not in arguments:
+            raise ValueError("output_dir is required when include_images is True")
+        if arguments.get("include_images") and arguments.get("output_dir"):
+            return extract_markdown_with_images(
+                arguments["file_path"], arguments["output_dir"]
+            )
         return extract_markdown(arguments["file_path"])
-    elif name == "extract_markdown_with_images":
-        if "file_path" not in arguments:
-            raise ValueError("Missing required argument: file_path")
-        if "output_dir" not in arguments:
-            raise ValueError("Missing required argument: output_dir")
-        return extract_markdown_with_images(
-            arguments["file_path"], arguments["output_dir"]
-        )
-    elif name == "process_url":
+    elif name == "extract_markdown_from_url":
         if "file_url" not in arguments:
             raise ValueError("Missing required argument: file_url")
         return extract_from_url(
             arguments["file_url"],
             include_image_base64=arguments.get("include_image_base64", False),
+        )
+    elif name == "extract_markdown_from_url_with_images":
+        if "file_url" not in arguments:
+            raise ValueError("Missing required argument: file_url")
+        if "output_dir" not in arguments:
+            raise ValueError("Missing required argument: output_dir")
+        return extract_from_url_with_images(
+            arguments["file_url"], arguments["output_dir"]
         )
     elif name == "extract_markdown_advanced":
         if "file_path" not in arguments:
@@ -183,13 +191,6 @@ def call_tool_impl(name: str, arguments: dict[str, Any]) -> Any:
             pages=arguments.get("pages"),
             table_format_=arguments.get("table_format_"),
             model=arguments.get("model", "mistral-ocr-latest"),
-        )
-    elif name == "extract_tables":
-        if "file_path" not in arguments:
-            raise ValueError("Missing required argument: file_path")
-        return extract_tables(
-            arguments["file_path"],
-            table_format=arguments.get("table_format", "markdown"),
         )
     elif name == "ocr_status":
         return ocr_status()

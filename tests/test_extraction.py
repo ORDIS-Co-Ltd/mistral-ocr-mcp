@@ -11,10 +11,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from mistral_ocr_mcp.extraction import (
     _create_output_subdirectory,
     extract_from_url,
+    extract_from_url_with_images,
     extract_markdown,
     extract_markdown_advanced,
     extract_markdown_with_images,
-    extract_tables,
     ocr_status,
 )
 from mistral_ocr_mcp.path_sandbox import PathValidationError
@@ -692,113 +692,99 @@ class TestExtractMarkdownAdvanced:
             extract_markdown_advanced("/nonexistent/file.pdf")
 
 
-class TestExtractTables:
-    """Tests for extract_tables function."""
+class TestExtractFromUrlWithImages:
+    """Tests for extract_from_url_with_images function."""
 
-    def test_returns_tables_from_all_pages(self, tmp_path, monkeypatch):
-        """Test that tables from all pages are returned."""
-        test_file = tmp_path / "test.pdf"
-        test_file.write_bytes(b"%PDF-1.4\n%EOF")
+    def test_full_workflow(self, tmp_path, monkeypatch):
+        """Test complete workflow: OCR, save images, rewrite markdown, save file."""
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
 
+        # Mock OCR response
         mock_response = Mock()
-
-        # Page 1 with two tables
-        mock_tbl1 = Mock()
-        mock_tbl1.id = "tbl_1"
-        mock_tbl1.content = "| A | B |"
-        mock_tbl1.format_ = "markdown"
-
-        mock_tbl2 = Mock()
-        mock_tbl2.id = "tbl_2"
-        mock_tbl2.content = "| C | D |"
-        mock_tbl2.format_ = "markdown"
-
-        mock_page1 = Mock()
-        mock_page1.index = 0
-        mock_page1.tables = [mock_tbl1, mock_tbl2]
-
-        # Page 2 with one table
-        mock_tbl3 = Mock()
-        mock_tbl3.id = "tbl_3"
-        mock_tbl3.content = "| E | F |"
-        mock_tbl3.format_ = "html"
-
-        mock_page2 = Mock()
-        mock_page2.index = 1
-        mock_page2.tables = [mock_tbl3]
-
-        mock_response.pages = [mock_page1, mock_page2]
+        mock_page = Mock()
+        mock_page.markdown = "# Page 1\n\nContent ![img](data:base64,...)"
+        mock_page.images = []
+        mock_response.pages = [mock_page]
 
         import mistral_ocr_mcp.extraction
 
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction,
-            "process_local_file_advanced",
-            lambda path, **kwargs: mock_response,
+            "process_url",
+            lambda url, **kwargs: mock_response,
         )
 
-        result = extract_tables(str(test_file))
-
-        assert len(result) == 3
-        assert result[0] == {"page_index": 0, "table_id": "tbl_1", "content": "| A | B |", "format": "markdown"}
-        assert result[1] == {"page_index": 0, "table_id": "tbl_2", "content": "| C | D |", "format": "markdown"}
-        assert result[2] == {"page_index": 1, "table_id": "tbl_3", "content": "| E | F |", "format": "html"}
-
-    def test_handles_page_without_tables(self, tmp_path, monkeypatch):
-        """Test that pages without tables are skipped."""
-        test_file = tmp_path / "test.pdf"
-        test_file.write_bytes(b"%PDF-1.4\n%EOF")
-
-        mock_response = Mock()
-        mock_page1 = Mock()
-        mock_page1.index = 0
-        mock_page1.tables = None
-        mock_page2 = Mock()
-        mock_page2.index = 1
-        mock_page2.tables = []
-        mock_response.pages = [mock_page1, mock_page2]
-
-        import mistral_ocr_mcp.extraction
-
+        # Mock save_images
         monkeypatch.setattr(
-            mistral_ocr_mcp.extraction,
-            "process_local_file_advanced",
-            lambda path, **kwargs: mock_response,
+            mistral_ocr_mcp.extraction, "save_images", lambda out_dir, images: []
         )
 
-        result = extract_tables(str(test_file))
+        # Mock config for output dir validation
+        mock_config = Mock()
+        mock_config.allowed_dir_resolved = tmp_path
+        mock_config.allowed_dir_original = str(tmp_path)
+        monkeypatch.setattr(
+            mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
+        )
 
-        assert result == []
+        result = extract_from_url_with_images(
+            "https://example.com/doc.pdf", str(output_dir)
+        )
 
-    def test_passes_table_format(self, tmp_path, monkeypatch):
-        """Test that table_format is passed to process_local_file_advanced."""
-        test_file = tmp_path / "test.pdf"
-        test_file.write_bytes(b"%PDF-1.4\n%EOF")
+        assert "output_directory" in result
+        assert "markdown_file" in result
+        assert "images" in result
+        assert isinstance(result["images"], list)
+
+        # Verify files exist
+        output_subdir = Path(result["output_directory"])
+        assert output_subdir.exists()
+        markdown_file = Path(result["markdown_file"])
+        assert markdown_file.exists()
+        assert markdown_file.name == "content.md"
+
+    def test_calls_process_url_with_images(self, tmp_path, monkeypatch):
+        """Test that process_url is called with include_image_base64=True."""
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
 
         mock_response = Mock()
-        mock_response.pages = []
+        mock_page = Mock()
+        mock_page.markdown = "Content"
+        mock_page.images = []
+        mock_response.pages = [mock_page]
 
         calls = []
 
-        def mock_process(path, **kwargs):
-            calls.append((path, kwargs))
+        def mock_process(url, **kwargs):
+            calls.append((url, kwargs))
             return mock_response
 
         import mistral_ocr_mcp.extraction
 
         monkeypatch.setattr(
-            mistral_ocr_mcp.extraction, "process_local_file_advanced", mock_process
+            mistral_ocr_mcp.extraction, "process_url", mock_process
         )
 
-        extract_tables(str(test_file), table_format="html")
+        mock_config = Mock()
+        mock_config.allowed_dir_resolved = tmp_path
+        mock_config.allowed_dir_original = str(tmp_path)
+        monkeypatch.setattr(
+            mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
+        )
+
+        monkeypatch.setattr(
+            mistral_ocr_mcp.extraction, "save_images", lambda out_dir, images: []
+        )
+
+        extract_from_url_with_images(
+            "https://example.com/doc.pdf", str(output_dir)
+        )
 
         assert len(calls) == 1
-        assert calls[0][1]["table_format"] == "html"
-
-    def test_validates_file_path(self, tmp_path):
-        """Test that invalid file path raises PathValidationError."""
-        with pytest.raises(PathValidationError):
-            extract_tables("/nonexistent/file.pdf")
+        assert calls[0][0] == "https://example.com/doc.pdf"
+        assert calls[0][1]["include_image_base64"] is True
 
 
 class TestOCRStatus:

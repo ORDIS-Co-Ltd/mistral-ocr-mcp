@@ -6,7 +6,7 @@ image saving, and markdown rewriting.
 
 import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TypedDict
+from typing import Dict, List, Optional, TypedDict
 
 
 class ExtractMarkdownWithImagesResult(TypedDict):
@@ -18,6 +18,8 @@ class ExtractMarkdownWithImagesResult(TypedDict):
     """Absolute path to the content.md file."""
     images: list[str]
     """List of saved image filenames (not full paths)."""
+
+from urllib.parse import urlparse
 
 from .config import load_config
 from .images import save_images
@@ -207,49 +209,78 @@ def extract_markdown_advanced(
     return "\n\n".join(page_markdowns)
 
 
-def extract_tables(
-    file_path: str,
-    table_format: str = "markdown",
-) -> list[dict[str, str]]:
-    """Extract tables from a PDF or image file.
+def extract_from_url_with_images(
+    file_url: str,
+    output_dir: str,
+) -> ExtractMarkdownWithImagesResult:
+    """Extract markdown from a URL with embedded images saved to disk.
 
-    Processes the file through OCR and returns all detected tables
-    from all pages. Each table includes its id, content, and format.
+    Same flow as `extract_from_url` but also saves images to the
+    output directory and rewrites markdown with relative image paths.
 
     Args:
-        file_path: Absolute path to the input file (PDF or image).
-        table_format: Output format for tables ("markdown" or "html").
+        file_url: Publicly accessible URL to a PDF or image.
+        output_dir: Absolute path to an existing output directory (must be within
+            the allowed directory from config).
 
     Returns:
-        List of dicts, each with:
-            - page_index: Page number (0-indexed)
-            - table_id: Table identifier
-            - content: Table content in the requested format
-            - format: Format of the content ("markdown" or "html")
+        Dictionary with:
+            - output_directory: Absolute path to the output subdirectory
+            - markdown_file: Absolute path to the content.md file
+            - images: List of saved image filenames (not full paths)
 
     Raises:
-        PathValidationError: If file_path is invalid.
         MistralOCRAPIError: If the OCR API call fails.
-        MistralOCRFileError: If filesystem operations fail.
     """
-    validated_path = validate_file_path(file_path)
-    response = process_local_file_advanced(
-        validated_path,
-        include_image_base64=False,
-        table_format=table_format,
+    config = load_config()
+
+    validated_output_dir = validate_output_dir(
+        output_dir,
+        config.allowed_dir_resolved,
+        config.allowed_dir_original,
     )
 
-    tables: list[dict[str, Any]] = []
+    # Derive a name from the URL for the output subdirectory
+    parsed = urlparse(file_url)
+    url_path = Path(parsed.path)
+    subdir_name = url_path.stem or "document"
+
+    output_subdir = _create_output_subdirectory(
+        validated_output_dir, name=subdir_name
+    )
+
+    response = process_url(file_url, include_image_base64=True)
+
+    # Extract images from response
+    images: List[dict] = []
     for page in response.pages:
-        if hasattr(page, "tables") and page.tables:
-            for tbl in page.tables:
-                tables.append({
-                    "page_index": page.index,
-                    "table_id": tbl.id,
-                    "content": tbl.content,
-                    "format": tbl.format_,
-                })
-    return tables
+        if hasattr(page, "images") and page.images:
+            images.extend(
+                [
+                    img.model_dump() if hasattr(img, "model_dump") else img
+                    for img in page.images
+                ]
+            )
+
+    # Save images
+    saved_filenames = save_images(output_subdir, images)
+
+    # Join page markdowns
+    page_markdowns = [page.markdown for page in response.pages]
+    markdown_content = "\n\n".join(page_markdowns)
+
+    # Rewrite markdown to replace base64 URIs with relative paths
+    rewritten_markdown = rewrite_markdown(markdown_content, images, saved_filenames)
+
+    # Save markdown as content.md
+    markdown_file_path = output_subdir / "content.md"
+    markdown_file_path.write_text(rewritten_markdown, encoding="utf-8")
+
+    return {
+        "output_directory": str(output_subdir),
+        "markdown_file": str(markdown_file_path),
+        "images": saved_filenames,
+    }
 
 
 def ocr_status() -> OCRStatusResult:
@@ -261,21 +292,31 @@ def ocr_status() -> OCRStatusResult:
     return check_api_status()
 
 
-def _create_output_subdirectory(output_dir: Path, file_path: Path) -> Path:
+def _create_output_subdirectory(
+    output_dir: Path,
+    file_path: Optional[Path] = None,
+    *,
+    name: Optional[str] = None,
+) -> Path:
     """Create a unique output subdirectory for a file's extracted content.
 
-    The subdirectory name is based on the file stem (without extension).
+    The subdirectory name is based on the file stem (without extension), or
+    the explicit ``name`` parameter when ``file_path`` is omitted.
     If a directory with that name already exists, appends a timestamp
     in the format _YYYYMMDD_HHMMSS.
 
     Args:
         output_dir: The validated output directory
-        file_path: The validated input file path
+        file_path: The validated input file path (ignored when ``name`` is set)
+        name: Explicit directory name (takes precedence over file_path)
 
     Returns:
         Path to the created output subdirectory
     """
-    base_name = file_path.stem
+    if name is not None:
+        base_name = name
+    else:
+        base_name = file_path.stem
     subdir_path = output_dir / base_name
 
     # If base directory doesn't exist, just use it

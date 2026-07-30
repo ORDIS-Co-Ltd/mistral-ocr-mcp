@@ -53,46 +53,32 @@ def extract_markdown_tool(
 @mcp.tool(name="extract_markdown_from_url")
 def extract_markdown_from_url_tool(
     file_url: str,
-    include_image_base64: bool = False,
-) -> str:
+    output_dir: Optional[str] = None,
+    include_images: bool = False,
+) -> ExtractMarkdownWithImagesResult:
     """Extract markdown text from a publicly accessible URL.
 
     Processes a PDF or image directly from a URL without uploading
-    a local file first.
+    a local file first. When ``include_images`` is True and ``output_dir``
+    is provided, saves extracted images to disk.
 
     Args:
         file_url: Publicly accessible URL to a PDF or image
-        include_image_base64: Whether to include base64 images in the response
+        output_dir: Absolute path to an existing output directory (must be
+            within allowed dir). Required when include_images is True.
+        include_images: When True and output_dir is set, save images to disk
 
     Returns:
-        Extracted markdown content as a string
+        When include_images is False:
+            result: Extracted markdown content
+        When include_images is True:
+            output_directory: Absolute path to the output subdirectory
+            markdown_file: Absolute path to the content.md file
+            images: List of saved image filenames
     """
-    return extract_from_url(file_url, include_image_base64=include_image_base64)
-
-
-@mcp.tool(name="extract_markdown_from_url_with_images")
-def extract_markdown_from_url_with_images_tool(
-    file_url: str,
-    output_dir: str,
-) -> ExtractMarkdownWithImagesResult:
-    """Extract markdown from a URL and save embedded images to disk.
-
-    Processes a PDF or image from a URL, saves extracted images to
-    the output directory, and rewrites the markdown with relative
-    image paths.
-
-    Args:
-        file_url: Publicly accessible URL to a PDF or image
-        output_dir: Absolute path to an existing output directory (must be within
-            the allowed directory from config)
-
-    Returns:
-        Dictionary with:
-            - output_directory: Absolute path to the output subdirectory
-            - markdown_file: Absolute path to the content.md file
-            - images: List of saved image filenames (not full paths)
-    """
-    return extract_from_url_with_images(file_url, output_dir)
+    if include_images and output_dir:
+        return extract_from_url_with_images(file_url, output_dir)
+    return extract_from_url(file_url)
 
 
 @mcp.tool(name="extract_markdown_advanced")
@@ -139,7 +125,6 @@ def list_tools_impl() -> list[str]:
     return [
         "extract_markdown",
         "extract_markdown_from_url",
-        "extract_markdown_from_url_with_images",
         "extract_markdown_advanced",
         "ocr_status",
     ]
@@ -171,18 +156,13 @@ def call_tool_impl(name: str, arguments: dict[str, Any]) -> Any:
     elif name == "extract_markdown_from_url":
         if "file_url" not in arguments:
             raise ValueError("Missing required argument: file_url")
-        return extract_from_url(
-            arguments["file_url"],
-            include_image_base64=arguments.get("include_image_base64", False),
-        )
-    elif name == "extract_markdown_from_url_with_images":
-        if "file_url" not in arguments:
-            raise ValueError("Missing required argument: file_url")
-        if "output_dir" not in arguments:
-            raise ValueError("Missing required argument: output_dir")
-        return extract_from_url_with_images(
-            arguments["file_url"], arguments["output_dir"]
-        )
+        if arguments.get("include_images") and "output_dir" not in arguments:
+            raise ValueError("output_dir is required when include_images is True")
+        if arguments.get("include_images") and arguments.get("output_dir"):
+            return extract_from_url_with_images(
+                arguments["file_url"], arguments["output_dir"]
+            )
+        return extract_from_url(arguments["file_url"])
     elif name == "extract_markdown_advanced":
         if "file_path" not in arguments:
             raise ValueError("Missing required argument: file_path")

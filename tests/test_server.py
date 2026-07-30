@@ -78,6 +78,8 @@ class TestMCPToolRegistration:
         properties = tool.input_schema.get("properties", {})
         assert "file_url" in properties
         assert properties["file_url"]["type"] == "string"
+        assert "output_dir" in properties
+        assert "include_images" in properties
 
     def test_extract_markdown_advanced_tool_has_correct_name(self):
         """Test that extract_markdown_advanced tool has the correct MCP name."""
@@ -149,10 +151,9 @@ class TestListToolsImpl:
         """Test that all tool names are returned."""
         tools = list_tools_impl()
 
-        assert len(tools) == 5
+        assert len(tools) == 4
         assert "extract_markdown" in tools
         assert "extract_markdown_from_url" in tools
-        assert "extract_markdown_from_url_with_images" in tools
         assert "extract_markdown_advanced" in tools
         assert "ocr_status" in tools
 
@@ -344,7 +345,7 @@ class TestExtractMarkdownToolWithImages:
         mock_markdown = "# URL Content"
         monkeypatch.setattr(
             "mistral_ocr_mcp.server.extract_from_url",
-            lambda url, **kwargs: mock_markdown,
+            lambda url: mock_markdown,
         )
 
         result = call_tool_impl(
@@ -361,27 +362,8 @@ class TestExtractMarkdownToolWithImages:
 
         assert "Missing required argument: file_url" in str(exc_info.value)
 
-    def test_extract_markdown_from_url_passes_include_image_base64(self, monkeypatch):
-        """Test that include_image_base64 is passed correctly."""
-        captured = {}
-
-        def capture(url, **kwargs):
-            captured["url"] = url
-            captured["include_image_base64"] = kwargs.get("include_image_base64", False)
-            return "# Result"
-
-        monkeypatch.setattr("mistral_ocr_mcp.server.extract_from_url", capture)
-
-        call_tool_impl(
-            "extract_markdown_from_url",
-            {"file_url": "https://example.com/doc.pdf", "include_image_base64": True},
-        )
-
-        assert captured["url"] == "https://example.com/doc.pdf"
-        assert captured["include_image_base64"] is True
-
     def test_extract_markdown_from_url_with_images_calls_function(self, monkeypatch):
-        """Test that extract_markdown_from_url_with_images calls the extraction function."""
+        """Test that extract_markdown_from_url with include_images saves images."""
         expected_result = {
             "output_directory": "/tmp/output/doc",
             "markdown_file": "/tmp/output/doc/content.md",
@@ -393,31 +375,25 @@ class TestExtractMarkdownToolWithImages:
         )
 
         result = call_tool_impl(
-            "extract_markdown_from_url_with_images",
-            {"file_url": "https://example.com/doc.pdf", "output_dir": "/tmp/output"},
+            "extract_markdown_from_url",
+            {
+                "file_url": "https://example.com/doc.pdf",
+                "include_images": True,
+                "output_dir": "/tmp/output",
+            },
         )
 
         assert result == expected_result
 
-    def test_extract_markdown_from_url_with_images_missing_file_url(self):
-        """Test that missing file_url raises ValueError."""
-        with pytest.raises(ValueError) as exc_info:
-            call_tool_impl(
-                "extract_markdown_from_url_with_images",
-                {"output_dir": "/tmp/output"},
-            )
-
-        assert "Missing required argument: file_url" in str(exc_info.value)
-
     def test_extract_markdown_from_url_with_images_missing_output_dir(self):
-        """Test that missing output_dir raises ValueError."""
+        """Test that include_images=True without output_dir raises ValueError."""
         with pytest.raises(ValueError) as exc_info:
             call_tool_impl(
-                "extract_markdown_from_url_with_images",
-                {"file_url": "https://example.com/doc.pdf"},
+                "extract_markdown_from_url",
+                {"file_url": "https://example.com/doc.pdf", "include_images": True},
             )
 
-        assert "Missing required argument: output_dir" in str(exc_info.value)
+        assert "output_dir is required" in str(exc_info.value)
 
     def test_extract_markdown_advanced_calls_function(self, tmp_path, monkeypatch):
         """Test that extract_markdown_advanced calls the extraction function."""
@@ -537,7 +513,7 @@ class TestServerIntegration:
     def test_tools_are_properly_defined(self):
         """Test that all tools are properly defined in the module."""
         tools = list_tools_impl()
-        assert len(tools) == 5
+        assert len(tools) == 4
         assert all(isinstance(tool, str) for tool in tools)
 
     def test_call_tool_impl_handles_empty_arguments(self):

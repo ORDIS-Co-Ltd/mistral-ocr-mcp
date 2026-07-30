@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from mistral_ocr_mcp.extraction import (
     _create_output_subdirectory,
     extract_from_url,
-    extract_from_url_with_images,
     extract_markdown,
     extract_markdown_advanced,
     extract_markdown_with_images,
@@ -571,7 +570,7 @@ class TestExtractFromUrl:
 
         result = extract_from_url("https://example.com/doc.pdf")
 
-        assert result == "# URL Content"
+        assert result == {"result": "# URL Content"}
         assert len(calls) == 1
         assert calls[0][0] == "https://example.com/doc.pdf"
 
@@ -594,12 +593,12 @@ class TestExtractFromUrl:
 
         result = extract_from_url("https://example.com/doc.pdf")
 
-        assert "# Page 1" in result
-        assert "# Page 2" in result
-        assert "\n\n" in result
+        assert "# Page 1" in result["result"]
+        assert "# Page 2" in result["result"]
+        assert "\n\n" in result["result"]
 
-    def test_passes_include_image_base64(self, monkeypatch):
-        """Test that include_image_base64 is passed to process_url."""
+    def test_calls_with_include_images_false_by_default(self, monkeypatch):
+        """Test that process_url is called with include_image_base64=False."""
         mock_response = Mock()
         mock_page = Mock()
         mock_page.markdown = "Content"
@@ -615,10 +614,10 @@ class TestExtractFromUrl:
 
         monkeypatch.setattr(mistral_ocr_mcp.extraction, "process_url", mock_process)
 
-        extract_from_url("https://example.com/img.png", include_image_base64=True)
+        extract_from_url("https://example.com/img.png")
 
         assert len(calls) == 1
-        assert calls[0][1]["include_image_base64"] is True
+        assert calls[0][1]["include_image_base64"] is False
 
 
 class TestExtractMarkdownAdvanced:
@@ -693,17 +692,16 @@ class TestExtractMarkdownAdvanced:
 
 
 class TestExtractFromUrlWithImages:
-    """Tests for extract_from_url_with_images function."""
+    """Tests for extract_from_url with include_images=True."""
 
     def test_full_workflow(self, tmp_path, monkeypatch):
         """Test complete workflow: OCR, save images, rewrite markdown, save file."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        # Mock OCR response
         mock_response = Mock()
         mock_page = Mock()
-        mock_page.markdown = "# Page 1\n\nContent ![img](data:base64,...)"
+        mock_page.markdown = "# Page 1\n\nContent"
         mock_page.images = []
         mock_response.pages = [mock_page]
 
@@ -715,21 +713,21 @@ class TestExtractFromUrlWithImages:
             lambda url, **kwargs: mock_response,
         )
 
-        # Mock save_images
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "save_images", lambda out_dir, images: []
         )
 
-        # Mock config for output dir validation
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dir_resolved = tmp_path.resolve()
+        mock_config.allowed_dir_original = str(tmp_path.resolve())
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
 
-        result = extract_from_url_with_images(
-            "https://example.com/doc.pdf", str(output_dir)
+        result = extract_from_url(
+            "https://example.com/doc.pdf",
+            output_dir=str(output_dir),
+            include_images=True,
         )
 
         assert "output_directory" in result
@@ -737,7 +735,6 @@ class TestExtractFromUrlWithImages:
         assert "images" in result
         assert isinstance(result["images"], list)
 
-        # Verify files exist
         output_subdir = Path(result["output_directory"])
         assert output_subdir.exists()
         markdown_file = Path(result["markdown_file"])
@@ -768,8 +765,8 @@ class TestExtractFromUrlWithImages:
         )
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dir_resolved = tmp_path.resolve()
+        mock_config.allowed_dir_original = str(tmp_path.resolve())
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
@@ -778,8 +775,10 @@ class TestExtractFromUrlWithImages:
             mistral_ocr_mcp.extraction, "save_images", lambda out_dir, images: []
         )
 
-        extract_from_url_with_images(
-            "https://example.com/doc.pdf", str(output_dir)
+        extract_from_url(
+            "https://example.com/doc.pdf",
+            output_dir=str(output_dir),
+            include_images=True,
         )
 
         assert len(calls) == 1

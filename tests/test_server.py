@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from unittest.mock import Mock
 import pytest
 
 # Add src to path for imports
@@ -342,10 +343,10 @@ class TestExtractMarkdownToolWithImages:
 
     def test_extract_markdown_from_url_calls_function(self, monkeypatch):
         """Test that extract_markdown_from_url tool calls the URL extraction function."""
-        mock_markdown = "# URL Content"
+        mock_markdown = {"result": "# URL Content"}
         monkeypatch.setattr(
             "mistral_ocr_mcp.server.extract_from_url",
-            lambda url: mock_markdown,
+            lambda url, **kwargs: mock_markdown,
         )
 
         result = call_tool_impl(
@@ -362,16 +363,35 @@ class TestExtractMarkdownToolWithImages:
 
         assert "Missing required argument: file_url" in str(exc_info.value)
 
-    def test_extract_markdown_from_url_with_images_calls_function(self, monkeypatch):
+    def test_extract_markdown_from_url_with_images_calls_function(self, tmp_path, monkeypatch):
         """Test that extract_markdown_from_url with include_images saves images."""
         expected_result = {
-            "output_directory": "/tmp/output/doc",
-            "markdown_file": "/tmp/output/doc/content.md",
+            "output_directory": str(tmp_path / "output" / "doc"),
+            "markdown_file": str(tmp_path / "output" / "doc" / "content.md"),
             "images": ["img_abc.png"],
         }
+
+        mock_config = Mock()
+        mock_config.allowed_dir_resolved = tmp_path
+        mock_config.allowed_dir_original = str(tmp_path)
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
         monkeypatch.setattr(
-            "mistral_ocr_mcp.server.extract_from_url_with_images",
-            lambda url, output: expected_result,
+            "mistral_ocr_mcp.extraction.load_config", lambda: mock_config
+        )
+
+        mock_response = Mock()
+        mock_page = Mock()
+        mock_page.markdown = "# Page 1\n\nContent"
+        mock_page.images = []
+        mock_response.pages = [mock_page]
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.extraction.process_url",
+            lambda url, **kwargs: mock_response,
+        )
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.extraction.save_images", lambda out_dir, images: []
         )
 
         result = call_tool_impl(
@@ -379,11 +399,13 @@ class TestExtractMarkdownToolWithImages:
             {
                 "file_url": "https://example.com/doc.pdf",
                 "include_images": True,
-                "output_dir": "/tmp/output",
+                "output_dir": str(output_dir),
             },
         )
 
-        assert result == expected_result
+        assert "output_directory" in result
+        assert "markdown_file" in result
+        assert "images" in result
 
     def test_extract_markdown_from_url_with_images_missing_output_dir(self):
         """Test that include_images=True without output_dir raises ValueError."""

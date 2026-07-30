@@ -150,29 +150,39 @@ class OCRStatusResult(TypedDict):
 
 def extract_from_url(
     file_url: str,
-    include_image_base64: bool = False,
-) -> str:
+    output_dir: Optional[str] = None,
+    include_images: bool = False,
+) -> ExtractMarkdownWithImagesResult:
     """Extract markdown from a publicly accessible URL.
 
-    Processes a PDF or image directly from a URL without uploading
-    a local file first.
+    When ``include_images`` is True and ``output_dir`` is provided, saves
+    extracted images to disk and returns metadata. Otherwise returns the
+    markdown text under the ``result`` key.
 
     Args:
         file_url: Publicly accessible URL to a PDF or image.
-        include_image_base64: Whether to include base64 images.
+        output_dir: Absolute path to an existing output directory (must be
+            within allowed dir). Required when include_images is True.
+        include_images: When True and output_dir is set, save images to disk.
 
     Returns:
-        Concatenated markdown content from all pages.
+        When include_images is False:
+            result: Extracted markdown content
+        When include_images is True:
+            output_directory: Absolute path to the output subdirectory
+            markdown_file: Absolute path to the content.md file
+            images: List of saved image filenames
 
     Raises:
         MistralOCRAPIError: If the OCR API call fails.
     """
-    response = process_url(
-        file_url,
-        include_image_base64=include_image_base64,
-    )
+    if include_images and output_dir:
+        return _extract_from_url_with_images(file_url, output_dir)
+
+    response = process_url(file_url, include_image_base64=False)
     page_markdowns = [page.markdown for page in response.pages]
-    return "\n\n".join(page_markdowns)
+    markdown = "\n\n".join(page_markdowns)
+    return {"result": markdown}  # type: ignore[return-value]
 
 
 def extract_markdown_advanced(
@@ -209,14 +219,11 @@ def extract_markdown_advanced(
     return "\n\n".join(page_markdowns)
 
 
-def extract_from_url_with_images(
+def _extract_from_url_with_images(
     file_url: str,
     output_dir: str,
 ) -> ExtractMarkdownWithImagesResult:
-    """Extract markdown from a URL with embedded images saved to disk.
-
-    Same flow as `extract_from_url` but also saves images to the
-    output directory and rewrites markdown with relative image paths.
+    """Extract markdown from a URL and save embedded images to disk.
 
     Args:
         file_url: Publicly accessible URL to a PDF or image.
@@ -228,9 +235,6 @@ def extract_from_url_with_images(
             - output_directory: Absolute path to the output subdirectory
             - markdown_file: Absolute path to the content.md file
             - images: List of saved image filenames (not full paths)
-
-    Raises:
-        MistralOCRAPIError: If the OCR API call fails.
     """
     config = load_config()
 

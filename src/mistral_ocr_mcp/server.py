@@ -7,7 +7,6 @@ from mcp.server.mcpserver import MCPServer
 from .extraction import (
     ExtractMarkdownWithImagesResult,
     extract_from_url,
-    extract_from_url_with_images,
     extract_markdown,
     extract_markdown_advanced,
     extract_markdown_with_images,
@@ -76,9 +75,7 @@ def extract_markdown_from_url_tool(
             markdown_file: Absolute path to the content.md file
             images: List of saved image filenames
     """
-    if include_images and output_dir:
-        return extract_from_url_with_images(file_url, output_dir)
-    return extract_from_url(file_url)
+    return extract_from_url(file_url, output_dir=output_dir, include_images=include_images)
 
 
 @mcp.tool(name="extract_markdown_advanced")
@@ -158,11 +155,11 @@ def call_tool_impl(name: str, arguments: dict[str, Any]) -> Any:
             raise ValueError("Missing required argument: file_url")
         if arguments.get("include_images") and "output_dir" not in arguments:
             raise ValueError("output_dir is required when include_images is True")
-        if arguments.get("include_images") and arguments.get("output_dir"):
-            return extract_from_url_with_images(
-                arguments["file_url"], arguments["output_dir"]
-            )
-        return extract_from_url(arguments["file_url"])
+        return extract_from_url(
+            arguments["file_url"],
+            output_dir=arguments.get("output_dir"),
+            include_images=arguments.get("include_images", False),
+        )
     elif name == "extract_markdown_advanced":
         if "file_path" not in arguments:
             raise ValueError("Missing required argument: file_path")

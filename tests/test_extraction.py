@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 import pytest
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -13,9 +13,7 @@ from mistral_ocr_mcp.extraction import (
     extract_markdown,
     extract_markdown_with_images,
 )
-from mistral_ocr_mcp.config import Config
 from mistral_ocr_mcp.path_sandbox import PathValidationError
-from mistral_ocr_mcp.mistral_client import MistralOCRAPIError, MistralOCRFileError
 
 
 class TestCreateOutputSubdirectory:

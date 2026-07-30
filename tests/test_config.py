@@ -1,6 +1,5 @@
 """Tests for config module."""
 
-import os
 import sys
 from pathlib import Path
 import pytest

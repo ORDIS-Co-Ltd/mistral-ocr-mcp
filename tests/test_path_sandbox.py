@@ -210,7 +210,6 @@ class TestValidateOutputDir:
         allowed_dir.mkdir()
 
         # Try to use a path that resolves to parent directory
-        output_dir = tmp_path  # Parent of allowed_dir
         output_dir_str = str(allowed_dir / "..")
 
         with pytest.raises(PathValidationError) as exc_info:

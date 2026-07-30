@@ -1,6 +1,5 @@
 """Tests for images module."""
 
-import base64
 import sys
 from pathlib import Path
 import pytest

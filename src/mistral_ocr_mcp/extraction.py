@@ -12,7 +12,7 @@ from .config import load_config
 from .images import save_images
 from .markdown_rewrite import rewrite_markdown
 from .mistral_client import process_local_file
-from .path_sandbox import PathValidationError, validate_file_path, validate_output_dir
+from .path_sandbox import validate_file_path, validate_output_dir
 
 
 def extract_markdown(file_path: str) -> str:

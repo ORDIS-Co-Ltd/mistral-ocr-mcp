@@ -2,13 +2,13 @@
 
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from .extraction import extract_markdown, extract_markdown_with_images
 
 
 # Create the MCP server instance
-mcp = FastMCP("Mistral OCR")
+mcp = MCPServer("Mistral OCR")
 
 
 @mcp.tool(name="extract_markdown")

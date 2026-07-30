@@ -3,15 +3,12 @@
 import sys
 from pathlib import Path
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from mistral_ocr_mcp.server import list_tools_impl, call_tool_impl
-from mistral_ocr_mcp.extraction import extract_markdown, extract_markdown_with_images
 from mistral_ocr_mcp.path_sandbox import PathValidationError
-import mcp.types
 
 
 class TestMCPToolRegistration:
@@ -57,9 +54,9 @@ class TestMCPToolRegistration:
 
         tool = asyncio.run(find_extract_markdown_tool())
         assert tool is not None
-        assert hasattr(tool, "inputSchema")
-        assert "file_path" in tool.inputSchema.get("properties", {})
-        assert tool.inputSchema["properties"]["file_path"]["type"] == "string"
+        assert hasattr(tool, "input_schema")
+        assert "file_path" in tool.input_schema.get("properties", {})
+        assert tool.input_schema["properties"]["file_path"]["type"] == "string"
 
     def test_extract_markdown_with_images_tool_schema(self):
         """Test that extract_markdown_with_images tool has the correct schema."""
@@ -75,8 +72,8 @@ class TestMCPToolRegistration:
 
         tool = asyncio.run(find_extract_markdown_with_images_tool())
         assert tool is not None
-        assert hasattr(tool, "inputSchema")
-        properties = tool.inputSchema.get("properties", {})
+        assert hasattr(tool, "input_schema")
+        properties = tool.input_schema.get("properties", {})
         assert "file_path" in properties
         assert "output_dir" in properties
         assert properties["file_path"]["type"] == "string"

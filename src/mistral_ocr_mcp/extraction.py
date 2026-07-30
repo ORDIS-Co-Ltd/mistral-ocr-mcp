@@ -39,23 +39,27 @@ def extract_markdown(
 ) -> ExtractMarkdownWithImagesResult:
     """Extract markdown text from a PDF or image file.
 
-    When ``include_images`` is True and ``output_dir`` is provided, saves
-    extracted images to disk and returns metadata. Otherwise returns the
-    markdown text under the ``result`` key.
+    When ``output_dir`` is provided, saves the extracted markdown to
+    ``content.md`` inside a named subdirectory. When ``include_images``
+    is also ``True``, saves embedded images alongside the markdown file.
+    Otherwise returns the markdown text inline.
 
     Args:
         file_path: Absolute path to the input file (PDF or image)
         output_dir: Absolute path to an existing output directory (must be
-            within allowed dir). Required when include_images is True.
-        include_images: When True and output_dir is set, save images to disk
+            within allowed dir). When set, saves markdown to disk at
+            ``<output_dir>/<file_stem>/content.md``.
+        include_images: When True (requires output_dir), save images to
+            disk and rewrite markdown with relative image links.
 
     Returns:
-        When include_images is False:
+        When output_dir is not set:
             result: Extracted markdown content
-        When include_images is True:
+        When output_dir is set (with or without images):
             output_directory: Absolute path to the output subdirectory
             markdown_file: Absolute path to the content.md file
-            images: List of saved image filenames
+            images: List of saved image filenames (empty if include_images
+                is False)
 
     Raises:
         PathValidationError: If file_path or output_dir is invalid
@@ -69,6 +73,25 @@ def extract_markdown(
     response = process_local_file(validated_path, include_image_base64=False)
     page_markdowns = [page.markdown for page in response.pages]
     markdown = "\n\n".join(page_markdowns)
+
+    if output_dir:
+        config = load_config()
+        validated_output_dir = validate_output_dir(
+            output_dir,
+            config.allowed_dir_resolved,
+            config.allowed_dir_original,
+        )
+        output_subdir = _create_output_subdirectory(
+            validated_output_dir, validated_path
+        )
+        markdown_file_path = output_subdir / "content.md"
+        markdown_file_path.write_text(markdown, encoding="utf-8")
+        return {
+            "output_directory": str(output_subdir),
+            "markdown_file": str(markdown_file_path),
+            "images": [],
+        }
+
     return {"result": markdown}  # type: ignore[return-value]
 
 
@@ -139,23 +162,27 @@ def extract_from_url(
 ) -> ExtractMarkdownWithImagesResult:
     """Extract markdown from a publicly accessible URL.
 
-    When ``include_images`` is True and ``output_dir`` is provided, saves
-    extracted images to disk and returns metadata. Otherwise returns the
-    markdown text under the ``result`` key.
+    When ``output_dir`` is provided, saves the extracted markdown to
+    ``content.md`` inside a named subdirectory. When ``include_images``
+    is also ``True``, saves embedded images alongside the markdown file.
+    Otherwise returns the markdown text inline.
 
     Args:
         file_url: Publicly accessible URL to a PDF or image.
         output_dir: Absolute path to an existing output directory (must be
-            within allowed dir). Required when include_images is True.
-        include_images: When True and output_dir is set, save images to disk.
+            within allowed dir). When set, saves markdown to disk at
+            ``<output_dir>/<url_stem>/content.md``.
+        include_images: When True (requires output_dir), save images to
+            disk and rewrite markdown with relative image links.
 
     Returns:
-        When include_images is False:
+        When output_dir is not set:
             result: Extracted markdown content
-        When include_images is True:
+        When output_dir is set (with or without images):
             output_directory: Absolute path to the output subdirectory
             markdown_file: Absolute path to the content.md file
-            images: List of saved image filenames
+            images: List of saved image filenames (empty if include_images
+                is False)
 
     Raises:
         MistralOCRAPIError: If the OCR API call fails.
@@ -166,6 +193,28 @@ def extract_from_url(
     response = process_url(file_url, include_image_base64=False)
     page_markdowns = [page.markdown for page in response.pages]
     markdown = "\n\n".join(page_markdowns)
+
+    if output_dir:
+        config = load_config()
+        validated_output_dir = validate_output_dir(
+            output_dir,
+            config.allowed_dir_resolved,
+            config.allowed_dir_original,
+        )
+        parsed = urlparse(file_url)
+        url_path = Path(parsed.path)
+        subdir_name = url_path.stem or "document"
+        output_subdir = _create_output_subdirectory(
+            validated_output_dir, name=subdir_name
+        )
+        markdown_file_path = output_subdir / "content.md"
+        markdown_file_path.write_text(markdown, encoding="utf-8")
+        return {
+            "output_directory": str(output_subdir),
+            "markdown_file": str(markdown_file_path),
+            "images": [],
+        }
+
     return {"result": markdown}  # type: ignore[return-value]
 
 

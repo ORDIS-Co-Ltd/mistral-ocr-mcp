@@ -25,23 +25,27 @@ def extract_markdown_tool(
 ) -> ExtractMarkdownWithImagesResult:
     """Extract markdown text from a PDF or image file.
 
-    When ``include_images`` is True and ``output_dir`` is provided, saves
-    extracted images to disk and returns metadata. Otherwise returns the
-    markdown text under the ``result`` key.
+    When ``output_dir`` is provided, saves the extracted markdown to
+    ``content.md`` inside a named subdirectory. When ``include_images``
+    is also ``True``, saves embedded images alongside the markdown file.
+    Otherwise returns the markdown text inline.
 
     Args:
         file_path: Absolute path to the input file (PDF or image)
         output_dir: Absolute path to an existing output directory (must be
-            within allowed dir). Required when include_images is True.
-        include_images: When True and output_dir is set, save images to disk
+            within allowed dir). When set, saves markdown to disk at
+            ``<output_dir>/<file_stem>/content.md``.
+        include_images: When True (requires output_dir), save images to
+            disk and rewrite markdown with relative image links.
 
     Returns:
-        When include_images is False:
+        When output_dir is not set:
             result: Extracted markdown content
-        When include_images is True:
+        When output_dir is set (with or without images):
             output_directory: Absolute path to the output subdirectory
             markdown_file: Absolute path to the content.md file
-            images: List of saved image filenames
+            images: List of saved image filenames (empty if include_images
+                is False)
     """
     return extract_markdown(
         file_path, output_dir=output_dir, include_images=include_images
@@ -57,22 +61,27 @@ def extract_markdown_from_url_tool(
     """Extract markdown text from a publicly accessible URL.
 
     Processes a PDF or image directly from a URL without uploading
-    a local file first. When ``include_images`` is True and ``output_dir``
-    is provided, saves extracted images to disk.
+    a local file first. When ``output_dir`` is provided, saves the
+    extracted markdown to ``content.md`` inside a named subdirectory.
+    When ``include_images`` is also ``True``, saves embedded images
+    alongside the markdown file.
 
     Args:
         file_url: Publicly accessible URL to a PDF or image
         output_dir: Absolute path to an existing output directory (must be
-            within allowed dir). Required when include_images is True.
-        include_images: When True and output_dir is set, save images to disk
+            within allowed dir). When set, saves markdown to disk at
+            ``<output_dir>/<url_stem>/content.md``.
+        include_images: When True (requires output_dir), save images to
+            disk and rewrite markdown with relative image links.
 
     Returns:
-        When include_images is False:
+        When output_dir is not set:
             result: Extracted markdown content
-        When include_images is True:
+        When output_dir is set (with or without images):
             output_directory: Absolute path to the output subdirectory
             markdown_file: Absolute path to the content.md file
-            images: List of saved image filenames
+            images: List of saved image filenames (empty if include_images
+                is False)
     """
     return extract_from_url(
         file_url, output_dir=output_dir, include_images=include_images
@@ -144,7 +153,7 @@ def call_tool_impl(name: str, arguments: dict[str, Any]) -> Any:
     if name == "extract_markdown":
         if "file_path" not in arguments:
             raise ValueError("Missing required argument: file_path")
-        if arguments.get("include_images") and "output_dir" not in arguments:
+        if arguments.get("include_images") and not arguments.get("output_dir"):
             raise ValueError("output_dir is required when include_images is True")
         return extract_markdown(
             arguments["file_path"],
@@ -154,7 +163,7 @@ def call_tool_impl(name: str, arguments: dict[str, Any]) -> Any:
     elif name == "extract_markdown_from_url":
         if "file_url" not in arguments:
             raise ValueError("Missing required argument: file_url")
-        if arguments.get("include_images") and "output_dir" not in arguments:
+        if arguments.get("include_images") and not arguments.get("output_dir"):
             raise ValueError("output_dir is required when include_images is True")
         return extract_from_url(
             arguments["file_url"],

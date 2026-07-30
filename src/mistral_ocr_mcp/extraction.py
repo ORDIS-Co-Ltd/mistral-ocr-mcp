@@ -6,7 +6,7 @@ image saving, and markdown rewriting.
 
 import datetime
 from pathlib import Path
-from typing import NotRequired, TypedDict
+from typing import TypedDict
 from urllib.parse import urlparse
 
 from .config import load_config
@@ -24,20 +24,19 @@ from .path_sandbox import validate_file_path, validate_output_dir
 class ExtractMarkdownWithImagesResult(TypedDict):
     """Result of extracting markdown from a file.
 
-    All fields are nullable to accommodate the MCP v2 output schema: when a
-    ``NotRequired`` field is absent at runtime, Pydantic's ``model_dump()``
-    (without ``exclude_unset=True``) emits ``null``.  Making each field
-    accept ``None`` avoids client-side ``jsonschema`` rejection.
+    All fields are required but nullable.  Every return path includes all
+    four keys; unused fields are set to ``None``.  This avoids client-side
+    validation issues with ``NotRequired`` fields.
     """
 
-    output_directory: NotRequired[str | None]
-    """Absolute path to the output subdirectory (set when output_dir is provided)."""
-    markdown_file: NotRequired[str | None]
-    """Absolute path to the content.md file (set when output_dir is provided)."""
-    images: NotRequired[list[str] | None]
-    """List of saved image filenames (set when output_dir is provided)."""
-    result: NotRequired[str | None]
-    """Extracted markdown content (set when output_dir is not provided)."""
+    output_directory: str | None
+    """Absolute path to the output subdirectory (``None`` when inline result)."""
+    markdown_file: str | None
+    """Absolute path to the content.md file (``None`` when inline result)."""
+    images: list[str] | None
+    """Saved image filenames (``None`` when inline result)."""
+    result: str | None
+    """Extracted markdown content (``None`` when saved to disk)."""
 
 
 def extract_markdown(
@@ -98,9 +97,15 @@ def extract_markdown(
             "output_directory": str(output_subdir),
             "markdown_file": str(markdown_file_path),
             "images": [],
+            "result": None,
         }
 
-    return {"result": markdown}
+    return {
+        "output_directory": None,
+        "markdown_file": None,
+        "images": None,
+        "result": markdown,
+    }
 
 
 def _extract_markdown_with_images(
@@ -151,6 +156,7 @@ def _extract_markdown_with_images(
         "output_directory": str(output_subdir),
         "markdown_file": str(markdown_file_path),
         "images": saved_filenames,
+        "result": None,
     }
 
 
@@ -221,9 +227,15 @@ def extract_from_url(
             "output_directory": str(output_subdir),
             "markdown_file": str(markdown_file_path),
             "images": [],
+            "result": None,
         }
 
-    return {"result": markdown}
+    return {
+        "output_directory": None,
+        "markdown_file": None,
+        "images": None,
+        "result": markdown,
+    }
 
 
 def extract_markdown_advanced(
@@ -323,6 +335,7 @@ def _extract_from_url_with_images(
         "output_directory": str(output_subdir),
         "markdown_file": str(markdown_file_path),
         "images": saved_filenames,
+        "result": None,
     }
 
 

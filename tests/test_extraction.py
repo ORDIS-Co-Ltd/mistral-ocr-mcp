@@ -561,7 +561,12 @@ class TestExtractFromUrl:
 
         result = extract_from_url("https://example.com/doc.pdf")
 
-        assert result == {"result": "# URL Content"}
+        assert result == {
+            "output_directory": None,
+            "markdown_file": None,
+            "images": None,
+            "result": "# URL Content",
+        }
         assert len(calls) == 1
         assert calls[0][0] == "https://example.com/doc.pdf"
 

@@ -169,7 +169,8 @@ class TestCallToolImpl:
 
         mock_markdown = "# Test Document\n\nContent here"
         monkeypatch.setattr(
-            "mistral_ocr_mcp.server.extract_markdown", lambda path: mock_markdown
+            "mistral_ocr_mcp.server.extract_markdown",
+            lambda path, **kwargs: mock_markdown,
         )
 
         result = call_tool_impl("extract_markdown", {"file_path": str(test_file)})
@@ -190,8 +191,8 @@ class TestCallToolImpl:
             "images": ["img_abc123.png"],
         }
         monkeypatch.setattr(
-            "mistral_ocr_mcp.server.extract_markdown_with_images",
-            lambda path, output: expected_result,
+            "mistral_ocr_mcp.server.extract_markdown",
+            lambda path, **kwargs: expected_result,
         )
 
         result = call_tool_impl(
@@ -241,7 +242,7 @@ class TestExtractMarkdownTool:
         expected_markdown = "# Extracted Content\n\nSome text content"
         monkeypatch.setattr(
             "mistral_ocr_mcp.server.extract_markdown",
-            lambda path: expected_markdown,
+            lambda path, **kwargs: expected_markdown,
         )
 
         result = call_tool_impl("extract_markdown", {"file_path": str(test_file)})
@@ -261,7 +262,10 @@ class TestExtractMarkdownTool:
             captured_path = path
             return "# Result"
 
-        monkeypatch.setattr("mistral_ocr_mcp.server.extract_markdown", capture_path)
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.server.extract_markdown",
+            lambda path, **kwargs: capture_path(path),
+        )
 
         call_tool_impl("extract_markdown", {"file_path": str(test_file)})
 
@@ -285,8 +289,8 @@ class TestExtractMarkdownToolWithImages:
             "images": [],
         }
         monkeypatch.setattr(
-            "mistral_ocr_mcp.server.extract_markdown_with_images",
-            lambda path, output: expected_result,
+            "mistral_ocr_mcp.server.extract_markdown",
+            lambda path, **kwargs: expected_result,
         )
 
         result = call_tool_impl(
@@ -313,11 +317,11 @@ class TestExtractMarkdownToolWithImages:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        captured_args = None
+        captured_kwargs = None
 
-        def capture_args(path, output):
-            nonlocal captured_args
-            captured_args = (path, output)
+        def capture_kwargs(path, **kwargs):
+            nonlocal captured_kwargs
+            captured_kwargs = (path, kwargs)
             return {
                 "output_directory": str(output_dir / "document"),
                 "markdown_file": str(output_dir / "document" / "content.md"),
@@ -325,7 +329,7 @@ class TestExtractMarkdownToolWithImages:
             }
 
         monkeypatch.setattr(
-            "mistral_ocr_mcp.server.extract_markdown_with_images", capture_args
+            "mistral_ocr_mcp.server.extract_markdown", capture_kwargs
         )
 
         call_tool_impl(
@@ -337,9 +341,10 @@ class TestExtractMarkdownToolWithImages:
             },
         )
 
-        assert captured_args is not None
-        assert captured_args[0] == str(test_file)
-        assert captured_args[1] == str(output_dir)
+        assert captured_kwargs is not None
+        assert captured_kwargs[0] == str(test_file)
+        assert captured_kwargs[1]["output_dir"] == str(output_dir)
+        assert captured_kwargs[1]["include_images"] is True
 
     def test_extract_markdown_from_url_calls_function(self, monkeypatch):
         """Test that extract_markdown_from_url tool calls the URL extraction function."""
@@ -509,11 +514,11 @@ class TestExtractMarkdownToolWithImages:
         output_dir.mkdir()
 
         # Mock extraction function to raise PathValidationError
-        def raise_error(path, output):
+        def raise_error(path, **kwargs):
             raise PathValidationError("File not found")
 
         monkeypatch.setattr(
-            "mistral_ocr_mcp.server.extract_markdown_with_images", raise_error
+            "mistral_ocr_mcp.server.extract_markdown", raise_error
         )
 
         with pytest.raises(PathValidationError) as exc_info:
@@ -563,5 +568,5 @@ class TestServerIntegration:
             "extract_markdown", {"file_path": str(test_file), "extra": "value"}
         )
 
-        # The extra argument should be ignored (kwargs should be empty)
-        assert captured_args == {}
+        # The function receives output_dir=None and include_images=False
+        assert captured_args == {"output_dir": None, "include_images": False}

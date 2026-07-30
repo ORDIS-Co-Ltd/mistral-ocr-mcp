@@ -33,81 +33,71 @@ from .mistral_client import (
 from .path_sandbox import validate_file_path, validate_output_dir
 
 
-def extract_markdown(file_path: str) -> str:
-    """Extract markdown text from a file without images.
+def extract_markdown(
+    file_path: str,
+    output_dir: Optional[str] = None,
+    include_images: bool = False,
+) -> ExtractMarkdownWithImagesResult:
+    """Extract markdown text from a PDF or image file.
+
+    When ``include_images`` is True and ``output_dir`` is provided, saves
+    extracted images to disk and returns metadata. Otherwise returns the
+    markdown text under the ``result`` key.
 
     Args:
         file_path: Absolute path to the input file (PDF or image)
+        output_dir: Absolute path to an existing output directory (must be
+            within allowed dir). Required when include_images is True.
+        include_images: When True and output_dir is set, save images to disk
 
     Returns:
-        Concatenated markdown content from all pages
-
-    Raises:
-        PathValidationError: If file_path is invalid
-        MistralOCRAPIError: If the OCR API call fails
-        MistralOCRFileError: If filesystem operations fail
-    """
-    # Validate file path
-    validated_path = validate_file_path(file_path)
-
-    # Call OCR without images
-    response = process_local_file(validated_path, include_image_base64=False)
-
-    # Join page markdowns with double newline
-    page_markdowns = [page.markdown for page in response.pages]
-    return "\n\n".join(page_markdowns)
-
-
-def extract_markdown_with_images(file_path: str, output_dir: str) -> ExtractMarkdownWithImagesResult:
-    """Extract markdown with embedded images and save them as separate files.
-
-    This function:
-    1. Validates both file_path and output_dir
-    2. Enforces sandbox constraints using config
-    3. Creates a unique output subdirectory
-    4. Calls OCR with include_image_base64=True
-    5. Saves images to the output subdirectory
-    6. Rewrites markdown to replace base64 URIs with relative paths
-    7. Saves the rewritten markdown as content.md
-    8. Returns metadata about the extracted content
-
-    Args:
-        file_path: Absolute path to the input file (PDF or image)
-        output_dir: Absolute path to the output directory (must be within allowed dir)
-
-    Returns:
-        Dictionary with keys:
-            - output_directory: Absolute path to the output subdirectory
-            - markdown_file: Absolute path to the content.md file
-            - images: List of saved image filenames (not full paths)
+        When include_images is False:
+            result: Extracted markdown content
+        When include_images is True:
+            output_directory: Absolute path to the output subdirectory
+            markdown_file: Absolute path to the content.md file
+            images: List of saved image filenames
 
     Raises:
         PathValidationError: If file_path or output_dir is invalid
         MistralOCRAPIError: If the OCR API call fails
         MistralOCRFileError: If filesystem operations fail
     """
-    # Load config to get allowed directory
+    if include_images and output_dir:
+        return _extract_markdown_with_images(file_path, output_dir)
+
+    validated_path = validate_file_path(file_path)
+    response = process_local_file(validated_path, include_image_base64=False)
+    page_markdowns = [page.markdown for page in response.pages]
+    markdown = "\n\n".join(page_markdowns)
+    return {"result": markdown}  # type: ignore[return-value]
+
+
+def _extract_markdown_with_images(file_path: str, output_dir: str) -> ExtractMarkdownWithImagesResult:
+    """Extract markdown with embedded images and save them as separate files.
+
+    Args:
+        file_path: Absolute path to the input file (PDF or image)
+        output_dir: Absolute path to the output directory (must be within allowed dir)
+
+    Returns:
+        Dictionary with:
+            - output_directory: Absolute path to the output subdirectory
+            - markdown_file: Absolute path to the content.md file
+            - images: List of saved image filenames
+    """
     config = load_config()
-
-    # Validate file path
     validated_file_path = validate_file_path(file_path)
-
-    # Validate output directory with sandbox enforcement
     validated_output_dir = validate_output_dir(
         output_dir,
         config.allowed_dir_resolved,
         config.allowed_dir_original,
     )
-
-    # Create output subdirectory with collision handling
     output_subdir = _create_output_subdirectory(
         validated_output_dir, validated_file_path
     )
-
-    # Call OCR with images
     response = process_local_file(validated_file_path, include_image_base64=True)
 
-    # Extract images from response
     images: List[dict] = []
     for page in response.pages:
         if hasattr(page, "images") and page.images:
@@ -118,17 +108,10 @@ def extract_markdown_with_images(file_path: str, output_dir: str) -> ExtractMark
                 ]
             )
 
-    # Save images
     saved_filenames = save_images(output_subdir, images)
-
-    # Join page markdowns
     page_markdowns = [page.markdown for page in response.pages]
     markdown_content = "\n\n".join(page_markdowns)
-
-    # Rewrite markdown to replace base64 URIs with relative paths
     rewritten_markdown = rewrite_markdown(markdown_content, images, saved_filenames)
-
-    # Save markdown as content.md
     markdown_file_path = output_subdir / "content.md"
     markdown_file_path.write_text(rewritten_markdown, encoding="utf-8")
 

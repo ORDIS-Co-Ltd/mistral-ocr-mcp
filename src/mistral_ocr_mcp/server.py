@@ -9,7 +9,6 @@ from .extraction import (
     extract_from_url,
     extract_markdown,
     extract_markdown_advanced,
-    extract_markdown_with_images,
     ocr_status,
 )
 
@@ -44,9 +43,7 @@ def extract_markdown_tool(
             markdown_file: Absolute path to the content.md file
             images: List of saved image filenames
     """
-    if include_images and output_dir:
-        return extract_markdown_with_images(file_path, output_dir)
-    return extract_markdown(file_path)
+    return extract_markdown(file_path, output_dir=output_dir, include_images=include_images)
 
 
 @mcp.tool(name="extract_markdown_from_url")
@@ -145,11 +142,11 @@ def call_tool_impl(name: str, arguments: dict[str, Any]) -> Any:
             raise ValueError("Missing required argument: file_path")
         if arguments.get("include_images") and "output_dir" not in arguments:
             raise ValueError("output_dir is required when include_images is True")
-        if arguments.get("include_images") and arguments.get("output_dir"):
-            return extract_markdown_with_images(
-                arguments["file_path"], arguments["output_dir"]
-            )
-        return extract_markdown(arguments["file_path"])
+        return extract_markdown(
+            arguments["file_path"],
+            output_dir=arguments.get("output_dir"),
+            include_images=arguments.get("include_images", False),
+        )
     elif name == "extract_markdown_from_url":
         if "file_url" not in arguments:
             raise ValueError("Missing required argument: file_url")

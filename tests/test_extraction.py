@@ -13,7 +13,6 @@ from mistral_ocr_mcp.extraction import (
     extract_from_url,
     extract_markdown,
     extract_markdown_advanced,
-    extract_markdown_with_images,
     ocr_status,
 )
 from mistral_ocr_mcp.path_sandbox import PathValidationError
@@ -178,9 +177,9 @@ class TestExtractMarkdown:
 
         result = extract_markdown(str(test_file))
 
-        assert "# Page 1" in result
-        assert "# Page 2" in result
-        assert "\n\n" in result  # Pages are joined with double newline
+        assert "# Page 1" in result["result"]
+        assert "# Page 2" in result["result"]
+        assert "\n\n" in result["result"]
 
     def test_calls_ocr_without_images(self, tmp_path, monkeypatch):
         """Test that OCR is called with include_image_base64=False."""
@@ -240,18 +239,16 @@ class TestExtractMarkdown:
 
 
 class TestExtractMarkdownWithImages:
-    """Tests for extract_markdown_with_images function."""
+    """Tests for extract_markdown with include_images=True."""
 
     def test_full_extraction_workflow(self, tmp_path, monkeypatch):
         """Test complete workflow: OCR, save images, rewrite markdown, save file."""
-        # Create test files
         test_file = tmp_path / "document.pdf"
         test_file.write_bytes(b"%PDF-1.4\n%EOF")
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        # Mock OCR response
         mock_response = Mock()
         mock_page = Mock()
         mock_page.markdown = "# Page 1\n\nContent"
@@ -267,13 +264,11 @@ class TestExtractMarkdownWithImages:
             mistral_ocr_mcp.extraction, "process_local_file", mock_process
         )
 
-        # Mock save_images
         def mock_save_images(out_dir, images):
             return []
 
         monkeypatch.setattr(mistral_ocr_mcp.extraction, "save_images", mock_save_images)
 
-        # Mock config
         mock_config = Mock()
         mock_config.allowed_dir_resolved = tmp_path
         mock_config.allowed_dir_original = str(tmp_path)
@@ -281,22 +276,21 @@ class TestExtractMarkdownWithImages:
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
 
-        result = extract_markdown_with_images(str(test_file), str(output_dir))
+        result = extract_markdown(
+            str(test_file), include_images=True, output_dir=str(output_dir)
+        )
 
-        # Verify return structure
         assert "output_directory" in result
         assert "markdown_file" in result
         assert "images" in result
         assert isinstance(result["images"], list)
 
-        # Verify files exist
         output_subdir = Path(result["output_directory"])
         assert output_subdir.exists()
         markdown_file = Path(result["markdown_file"])
         assert markdown_file.exists()
         assert markdown_file.name == "content.md"
 
-        # Verify markdown content is preserved
         content = markdown_file.read_text()
         assert "# Page 1" in content
         assert "Content" in content
@@ -309,11 +303,9 @@ class TestExtractMarkdownWithImages:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        # Pre-create the "doc" directory
         existing_doc_dir = output_dir / "doc"
         existing_doc_dir.mkdir()
 
-        # Mock OCR response
         mock_response = Mock()
         mock_page = Mock()
         mock_page.markdown = "Content"
@@ -328,12 +320,10 @@ class TestExtractMarkdownWithImages:
             lambda path, **kwargs: mock_response,
         )
 
-        # Mock save_images
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "save_images", lambda out_dir, images: []
         )
 
-        # Mock config
         mock_config = Mock()
         mock_config.allowed_dir_resolved = tmp_path
         mock_config.allowed_dir_original = str(tmp_path)
@@ -341,11 +331,12 @@ class TestExtractMarkdownWithImages:
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
 
-        result = extract_markdown_with_images(str(test_file), str(output_dir))
+        result = extract_markdown(
+            str(test_file), include_images=True, output_dir=str(output_dir)
+        )
 
         output_subdir = Path(result["output_directory"])
 
-        # Should be a different directory (with timestamp)
         assert output_subdir.name.startswith("doc_")
         assert output_subdir != existing_doc_dir
         assert output_subdir.exists()
@@ -358,7 +349,6 @@ class TestExtractMarkdownWithImages:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        # Track call arguments
         calls = []
 
         mock_response = Mock()
@@ -377,12 +367,10 @@ class TestExtractMarkdownWithImages:
             mistral_ocr_mcp.extraction, "process_local_file", mock_process
         )
 
-        # Mock save_images
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "save_images", lambda out_dir, images: []
         )
 
-        # Mock config
         mock_config = Mock()
         mock_config.allowed_dir_resolved = tmp_path
         mock_config.allowed_dir_original = str(tmp_path)
@@ -390,7 +378,9 @@ class TestExtractMarkdownWithImages:
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
 
-        extract_markdown_with_images(str(test_file), str(output_dir))
+        extract_markdown(
+            str(test_file), include_images=True, output_dir=str(output_dir)
+        )
 
         assert len(calls) == 1
         assert calls[0][1]["include_image_base64"] is True
@@ -399,7 +389,6 @@ class TestExtractMarkdownWithImages:
         """Test that invalid file path raises PathValidationError."""
         import mistral_ocr_mcp.extraction
 
-        # Mock config first (called before validate_file_path)
         mock_config = Mock()
         mock_config.allowed_dir_resolved = tmp_path
         mock_config.allowed_dir_original = str(tmp_path)
@@ -415,7 +404,11 @@ class TestExtractMarkdownWithImages:
         )
 
         with pytest.raises(PathValidationError) as exc_info:
-            extract_markdown_with_images("/nonexistent/file.pdf", str(tmp_path))
+            extract_markdown(
+                "/nonexistent/file.pdf",
+                include_images=True,
+                output_dir=str(tmp_path),
+            )
 
         assert "Invalid file path" in str(exc_info.value)
 
@@ -426,7 +419,6 @@ class TestExtractMarkdownWithImages:
 
         import mistral_ocr_mcp.extraction
 
-        # Mock config first (called before validate_output_dir)
         mock_config = Mock()
         mock_config.allowed_dir_resolved = tmp_path
         mock_config.allowed_dir_original = str(tmp_path)
@@ -434,7 +426,6 @@ class TestExtractMarkdownWithImages:
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
 
-        # Mock file validation to succeed
         def mock_validate_file(path):
             return Path(path).resolve(strict=True)
 
@@ -442,7 +433,6 @@ class TestExtractMarkdownWithImages:
             mistral_ocr_mcp.extraction, "validate_file_path", mock_validate_file
         )
 
-        # Mock output dir validation to fail
         def mock_validate_output(path, *args, **kwargs):
             raise PathValidationError("Invalid output dir")
 
@@ -451,7 +441,11 @@ class TestExtractMarkdownWithImages:
         )
 
         with pytest.raises(PathValidationError) as exc_info:
-            extract_markdown_with_images(str(test_file), str(tmp_path))
+            extract_markdown(
+                str(test_file),
+                include_images=True,
+                output_dir=str(tmp_path),
+            )
 
         assert "Invalid output dir" in str(exc_info.value)
 
@@ -463,7 +457,6 @@ class TestExtractMarkdownWithImages:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        # Mock OCR response
         mock_response = Mock()
         mock_page = Mock()
         mock_page.markdown = "Content"
@@ -478,12 +471,10 @@ class TestExtractMarkdownWithImages:
             lambda path, **kwargs: mock_response,
         )
 
-        # Mock save_images
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "save_images", lambda out_dir, images: []
         )
 
-        # Mock config
         mock_config = Mock()
         mock_config.allowed_dir_resolved = tmp_path
         mock_config.allowed_dir_original = str(tmp_path)
@@ -491,9 +482,10 @@ class TestExtractMarkdownWithImages:
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
 
-        result = extract_markdown_with_images(str(test_file), str(output_dir))
+        result = extract_markdown(
+            str(test_file), include_images=True, output_dir=str(output_dir)
+        )
 
-        # Verify paths are absolute
         assert Path(result["output_directory"]).is_absolute()
         assert Path(result["markdown_file"]).is_absolute()
 
@@ -505,7 +497,6 @@ class TestExtractMarkdownWithImages:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        # Mock OCR response with multiple pages
         mock_response = Mock()
         mock_page1 = Mock()
         mock_page1.markdown = "# Page 1"
@@ -526,12 +517,10 @@ class TestExtractMarkdownWithImages:
             lambda path, **kwargs: mock_response,
         )
 
-        # Mock save_images
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "save_images", lambda out_dir, images: []
         )
 
-        # Mock config
         mock_config = Mock()
         mock_config.allowed_dir_resolved = tmp_path
         mock_config.allowed_dir_original = str(tmp_path)
@@ -539,9 +528,10 @@ class TestExtractMarkdownWithImages:
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
 
-        result = extract_markdown_with_images(str(test_file), str(output_dir))
+        result = extract_markdown(
+            str(test_file), include_images=True, output_dir=str(output_dir)
+        )
 
-        # Verify all pages are in the markdown
         content = Path(result["markdown_file"]).read_text()
         assert "# Page 1" in content
         assert "# Page 2" in content

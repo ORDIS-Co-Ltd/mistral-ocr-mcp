@@ -22,15 +22,21 @@ from .path_sandbox import validate_file_path, validate_output_dir
 
 
 class ExtractMarkdownWithImagesResult(TypedDict):
-    """Result of extracting markdown from a file."""
+    """Result of extracting markdown from a file.
 
-    output_directory: NotRequired[str]
+    All fields are nullable to accommodate the MCP v2 output schema: when a
+    ``NotRequired`` field is absent at runtime, Pydantic's ``model_dump()``
+    (without ``exclude_unset=True``) emits ``null``.  Making each field
+    accept ``None`` avoids client-side ``jsonschema`` rejection.
+    """
+
+    output_directory: NotRequired[str | None]
     """Absolute path to the output subdirectory (set when output_dir is provided)."""
-    markdown_file: NotRequired[str]
+    markdown_file: NotRequired[str | None]
     """Absolute path to the content.md file (set when output_dir is provided)."""
-    images: NotRequired[list[str]]
+    images: NotRequired[list[str] | None]
     """List of saved image filenames (set when output_dir is provided)."""
-    result: NotRequired[str]
+    result: NotRequired[str | None]
     """Extracted markdown content (set when output_dir is not provided)."""
 
 

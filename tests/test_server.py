@@ -79,6 +79,131 @@ class TestMCPToolRegistration:
         assert properties["file_path"]["type"] == "string"
         assert properties["output_dir"]["type"] == "string"
 
+    def test_process_url_tool_has_correct_name(self):
+        """Test that process_url tool has the correct MCP name."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def get_tool_names():
+            tools = await mcp.list_tools()
+            return [tool.name for tool in tools]
+
+        tool_names = asyncio.run(get_tool_names())
+        assert "process_url" in tool_names
+
+    def test_process_url_tool_schema(self):
+        """Test that process_url tool has the correct schema."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def find_tool():
+            tools = await mcp.list_tools()
+            for tool in tools:
+                if tool.name == "process_url":
+                    return tool
+            return None
+
+        tool = asyncio.run(find_tool())
+        assert tool is not None
+        assert hasattr(tool, "input_schema")
+        properties = tool.input_schema.get("properties", {})
+        assert "file_url" in properties
+        assert properties["file_url"]["type"] == "string"
+
+    def test_extract_markdown_advanced_tool_has_correct_name(self):
+        """Test that extract_markdown_advanced tool has the correct MCP name."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def get_tool_names():
+            tools = await mcp.list_tools()
+            return [tool.name for tool in tools]
+
+        tool_names = asyncio.run(get_tool_names())
+        assert "extract_markdown_advanced" in tool_names
+
+    def test_extract_markdown_advanced_tool_schema(self):
+        """Test that extract_markdown_advanced tool has the correct schema."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def find_tool():
+            tools = await mcp.list_tools()
+            for tool in tools:
+                if tool.name == "extract_markdown_advanced":
+                    return tool
+            return None
+
+        tool = asyncio.run(find_tool())
+        assert tool is not None
+        assert hasattr(tool, "input_schema")
+        properties = tool.input_schema.get("properties", {})
+        assert "file_path" in properties
+        assert properties["file_path"]["type"] == "string"
+        assert "pages" in properties
+        assert "table_format_" in properties
+        assert "model" in properties
+
+    def test_extract_tables_tool_has_correct_name(self):
+        """Test that extract_tables tool has the correct MCP name."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def get_tool_names():
+            tools = await mcp.list_tools()
+            return [tool.name for tool in tools]
+
+        tool_names = asyncio.run(get_tool_names())
+        assert "extract_tables" in tool_names
+
+    def test_extract_tables_tool_schema(self):
+        """Test that extract_tables tool has the correct schema."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def find_tool():
+            tools = await mcp.list_tools()
+            for tool in tools:
+                if tool.name == "extract_tables":
+                    return tool
+            return None
+
+        tool = asyncio.run(find_tool())
+        assert tool is not None
+        assert hasattr(tool, "input_schema")
+        properties = tool.input_schema.get("properties", {})
+        assert "file_path" in properties
+        assert properties["file_path"]["type"] == "string"
+        assert "table_format" in properties
+
+    def test_ocr_status_tool_has_correct_name(self):
+        """Test that ocr_status tool has the correct MCP name."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def get_tool_names():
+            tools = await mcp.list_tools()
+            return [tool.name for tool in tools]
+
+        tool_names = asyncio.run(get_tool_names())
+        assert "ocr_status" in tool_names
+
+    def test_ocr_status_tool_no_required_params(self):
+        """Test that ocr_status has no required parameters."""
+        from mistral_ocr_mcp.server import mcp
+        import asyncio
+
+        async def find_tool():
+            tools = await mcp.list_tools()
+            for tool in tools:
+                if tool.name == "ocr_status":
+                    return tool
+            return None
+
+        tool = asyncio.run(find_tool())
+        assert tool is not None
+        assert "required" not in tool.input_schema or tool.input_schema["required"] == []
+
     def test_extract_markdown_with_images_tool_description_includes_existence_hint(
         self,
     ):
@@ -102,13 +227,17 @@ class TestMCPToolRegistration:
 class TestListToolsImpl:
     """Tests for list_tools_impl function."""
 
-    def test_returns_both_tool_names(self):
-        """Test that both tool names are returned."""
+    def test_returns_all_tool_names(self):
+        """Test that all tool names are returned."""
         tools = list_tools_impl()
 
-        assert len(tools) == 2
+        assert len(tools) == 6
         assert "extract_markdown" in tools
         assert "extract_markdown_with_images" in tools
+        assert "process_url" in tools
+        assert "extract_markdown_advanced" in tools
+        assert "extract_tables" in tools
+        assert "ocr_status" in tools
 
 
 class TestCallToolImpl:
@@ -295,6 +424,178 @@ class TestExtractMarkdownWithImagesTool:
         assert captured_args[0] == str(test_file)
         assert captured_args[1] == str(output_dir)
 
+    def test_process_url_calls_function(self, monkeypatch):
+        """Test that process_url tool calls the URL extraction function."""
+        mock_markdown = "# URL Content"
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.server.extract_from_url",
+            lambda url, **kwargs: mock_markdown,
+        )
+
+        result = call_tool_impl(
+            "process_url",
+            {"file_url": "https://example.com/doc.pdf"},
+        )
+
+        assert result == mock_markdown
+
+    def test_process_url_missing_file_url(self):
+        """Test that missing file_url raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            call_tool_impl("process_url", {})
+
+        assert "Missing required argument: file_url" in str(exc_info.value)
+
+    def test_process_url_passes_include_image_base64(self, monkeypatch):
+        """Test that include_image_base64 is passed correctly."""
+        captured = {}
+
+        def capture(url, **kwargs):
+            captured["url"] = url
+            captured["include_image_base64"] = kwargs.get("include_image_base64", False)
+            return "# Result"
+
+        monkeypatch.setattr("mistral_ocr_mcp.server.extract_from_url", capture)
+
+        call_tool_impl(
+            "process_url",
+            {"file_url": "https://example.com/doc.pdf", "include_image_base64": True},
+        )
+
+        assert captured["url"] == "https://example.com/doc.pdf"
+        assert captured["include_image_base64"] is True
+
+    def test_extract_markdown_advanced_calls_function(self, tmp_path, monkeypatch):
+        """Test that extract_markdown_advanced calls the extraction function."""
+        test_file = tmp_path / "test.pdf"
+        test_file.write_bytes(b"%PDF-1.4\n%EOF")
+
+        mock_markdown = "# Advanced Result"
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.server.extract_markdown_advanced",
+            lambda path, **kwargs: mock_markdown,
+        )
+
+        result = call_tool_impl(
+            "extract_markdown_advanced", {"file_path": str(test_file)}
+        )
+
+        assert result == mock_markdown
+
+    def test_extract_markdown_advanced_missing_file_path(self):
+        """Test that missing file_path raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            call_tool_impl("extract_markdown_advanced", {})
+
+        assert "Missing required argument: file_path" in str(exc_info.value)
+
+    def test_extract_markdown_advanced_passes_optional_params(self, tmp_path, monkeypatch):
+        """Test that optional params are passed to extraction function."""
+        test_file = tmp_path / "test.pdf"
+        test_file.write_bytes(b"%PDF-1.4\n%EOF")
+
+        captured = {}
+
+        def capture(path, **kwargs):
+            captured["path"] = path
+            captured["pages"] = kwargs.get("pages")
+            captured["table_format_"] = kwargs.get("table_format_")
+            captured["model"] = kwargs.get("model", "mistral-ocr-latest")
+            return "# Result"
+
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.server.extract_markdown_advanced", capture
+        )
+
+        call_tool_impl(
+            "extract_markdown_advanced",
+            {
+                "file_path": str(test_file),
+                "pages": [1, 3],
+                "table_format_": "html",
+                "model": "mistral-ocr-latest",
+            },
+        )
+
+        assert captured["path"] == str(test_file)
+        assert captured["pages"] == [1, 3]
+        assert captured["table_format_"] == "html"
+        assert captured["model"] == "mistral-ocr-latest"
+
+    def test_extract_tables_calls_function(self, tmp_path, monkeypatch):
+        """Test that extract_tables calls the extraction function."""
+        test_file = tmp_path / "test.pdf"
+        test_file.write_bytes(b"%PDF-1.4\n%EOF")
+
+        mock_tables = [
+            {"page_index": 0, "table_id": "tbl_1", "content": "| A | B |", "format": "markdown"}
+        ]
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.server.extract_tables",
+            lambda path, **kwargs: mock_tables,
+        )
+
+        result = call_tool_impl(
+            "extract_tables", {"file_path": str(test_file)}
+        )
+
+        assert result == mock_tables
+
+    def test_extract_tables_missing_file_path(self):
+        """Test that missing file_path raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            call_tool_impl("extract_tables", {})
+
+        assert "Missing required argument: file_path" in str(exc_info.value)
+
+    def test_extract_tables_passes_table_format(self, tmp_path, monkeypatch):
+        """Test that table_format is passed correctly."""
+        test_file = tmp_path / "test.pdf"
+        test_file.write_bytes(b"%PDF-1.4\n%EOF")
+
+        captured = {}
+
+        def capture(path, **kwargs):
+            captured["path"] = path
+            captured["table_format"] = kwargs.get("table_format", "markdown")
+            return []
+
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.server.extract_tables", capture
+        )
+
+        call_tool_impl(
+            "extract_tables",
+            {"file_path": str(test_file), "table_format": "html"},
+        )
+
+        assert captured["path"] == str(test_file)
+        assert captured["table_format"] == "html"
+
+    def test_ocr_status_calls_function(self, monkeypatch):
+        """Test that ocr_status calls the status function."""
+        mock_status = {"status": "ok", "message": "API key is working"}
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.server.ocr_status", lambda: mock_status
+        )
+
+        result = call_tool_impl("ocr_status", {})
+
+        assert result == mock_status
+
+    def test_ocr_status_returns_dict(self, monkeypatch):
+        """Test that ocr_status returns a dict with expected keys."""
+        mock_status = {"status": "ok", "message": "API key is working"}
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.server.ocr_status", lambda: mock_status
+        )
+
+        result = call_tool_impl("ocr_status", {})
+
+        assert isinstance(result, dict)
+        assert "status" in result
+        assert "message" in result
+
     def test_extract_markdown_with_images_handles_extraction_errors(
         self, tmp_path, monkeypatch
     ):
@@ -327,9 +628,9 @@ class TestServerIntegration:
     """Integration tests for server functionality."""
 
     def test_tools_are_properly_defined(self):
-        """Test that both tools are properly defined in the module."""
+        """Test that all tools are properly defined in the module."""
         tools = list_tools_impl()
-        assert len(tools) == 2
+        assert len(tools) == 6
         assert all(isinstance(tool, str) for tool in tools)
 
     def test_call_tool_impl_handles_empty_arguments(self):

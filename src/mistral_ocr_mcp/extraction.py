@@ -6,7 +6,7 @@ image saving, and markdown rewriting.
 
 import datetime
 from pathlib import Path
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict
 
 
 class ExtractMarkdownWithImagesResult(TypedDict):
@@ -22,7 +22,12 @@ class ExtractMarkdownWithImagesResult(TypedDict):
 from .config import load_config
 from .images import save_images
 from .markdown_rewrite import rewrite_markdown
-from .mistral_client import process_local_file
+from .mistral_client import (
+    check_api_status,
+    process_local_file,
+    process_local_file_advanced,
+    process_url,
+)
 from .path_sandbox import validate_file_path, validate_output_dir
 
 
@@ -130,6 +135,130 @@ def extract_markdown_with_images(file_path: str, output_dir: str) -> ExtractMark
         "markdown_file": str(markdown_file_path),
         "images": saved_filenames,
     }
+
+
+class OCRStatusResult(TypedDict):
+    """Result of an API status check."""
+
+    status: str
+    """"ok" or "error"."""
+    message: str
+    """Human-readable status description."""
+
+
+def extract_from_url(
+    file_url: str,
+    include_image_base64: bool = False,
+) -> str:
+    """Extract markdown from a publicly accessible URL.
+
+    Processes a PDF or image directly from a URL without uploading
+    a local file first.
+
+    Args:
+        file_url: Publicly accessible URL to a PDF or image.
+        include_image_base64: Whether to include base64 images.
+
+    Returns:
+        Concatenated markdown content from all pages.
+
+    Raises:
+        MistralOCRAPIError: If the OCR API call fails.
+    """
+    response = process_url(
+        file_url,
+        include_image_base64=include_image_base64,
+    )
+    page_markdowns = [page.markdown for page in response.pages]
+    return "\n\n".join(page_markdowns)
+
+
+def extract_markdown_advanced(
+    file_path: str,
+    pages: Optional[list[int]] = None,
+    table_format_: Optional[str] = None,
+    model: str = "mistral-ocr-latest",
+) -> str:
+    """Extract markdown with advanced OCR options.
+
+    Args:
+        file_path: Absolute path to the input file (PDF or image).
+        pages: Specific page numbers to process (1-indexed).
+        table_format_: Output format for tables ("markdown" or "html").
+        model: OCR model to use (default: "mistral-ocr-latest").
+
+    Returns:
+        Extracted markdown content as a string.
+
+    Raises:
+        PathValidationError: If file_path is invalid.
+        MistralOCRAPIError: If the OCR API call fails.
+        MistralOCRFileError: If filesystem operations fail.
+    """
+    validated_path = validate_file_path(file_path)
+    response = process_local_file_advanced(
+        validated_path,
+        include_image_base64=False,
+        pages=pages,
+        table_format=table_format_,
+        model=model,
+    )
+    page_markdowns = [page.markdown for page in response.pages]
+    return "\n\n".join(page_markdowns)
+
+
+def extract_tables(
+    file_path: str,
+    table_format: str = "markdown",
+) -> list[dict[str, str]]:
+    """Extract tables from a PDF or image file.
+
+    Processes the file through OCR and returns all detected tables
+    from all pages. Each table includes its id, content, and format.
+
+    Args:
+        file_path: Absolute path to the input file (PDF or image).
+        table_format: Output format for tables ("markdown" or "html").
+
+    Returns:
+        List of dicts, each with:
+            - page_index: Page number (0-indexed)
+            - table_id: Table identifier
+            - content: Table content in the requested format
+            - format: Format of the content ("markdown" or "html")
+
+    Raises:
+        PathValidationError: If file_path is invalid.
+        MistralOCRAPIError: If the OCR API call fails.
+        MistralOCRFileError: If filesystem operations fail.
+    """
+    validated_path = validate_file_path(file_path)
+    response = process_local_file_advanced(
+        validated_path,
+        include_image_base64=False,
+        table_format=table_format,
+    )
+
+    tables: list[dict[str, Any]] = []
+    for page in response.pages:
+        if hasattr(page, "tables") and page.tables:
+            for tbl in page.tables:
+                tables.append({
+                    "page_index": page.index,
+                    "table_id": tbl.id,
+                    "content": tbl.content,
+                    "format": tbl.format_,
+                })
+    return tables
+
+
+def ocr_status() -> OCRStatusResult:
+    """Check Mistral API connectivity and key validity.
+
+    Returns:
+        Dict with status and message.
+    """
+    return check_api_status()
 
 
 def _create_output_subdirectory(output_dir: Path, file_path: Path) -> Path:

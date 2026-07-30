@@ -4,8 +4,10 @@ A Model Context Protocol (MCP) server that provides tools for extracting text an
 
 ## Features
 
-- **Simple Text Extraction**: Extract markdown content from documents without handling images
-- **Full Extraction with Images**: Extract markdown and save embedded images to disk with proper relative links
+- **Local & URL Extraction**: Extract markdown from local files or remote URLs
+- **Image Handling on Demand**: Optionally save embedded images to disk with proper relative links
+- **Advanced OCR**: Page selection, table format control, model selection
+- **Health Check**: Built-in API status endpoint
 - **Security Sandbox**: Restricts file writes to a configured allowed directory
 - **Zero-Install Deployment**: Run with `uvx` without prior installation
 - **Supported Formats**: PDF (`.pdf`), PNG (`.png`), JPEG (`.jpg`, `.jpeg`), WebP (`.webp`), GIF (`.gif`)
@@ -79,10 +81,10 @@ Make sure the environment variables `MISTRAL_API_KEY` and `MISTRAL_OCR_ALLOWED_D
 
 ### Security Sandbox
 
-The server enforces a **write directory sandbox** to prevent unauthorized file writes:
-
-- **`extract_markdown`**: No write restrictions (read-only operation)
-- **`extract_markdown_with_images`**: The `output_dir` parameter **must** be within `MISTRAL_OCR_ALLOWED_DIR`
+The server enforces a **write directory sandbox** to prevent unauthorized file writes.
+When `include_images` is `True`, the `output_dir` parameter **must** be within
+`MISTRAL_OCR_ALLOWED_DIR`. Text-only extraction (`include_images=False`)
+is read-only and has no sandbox restrictions.
 
 **Validation Examples:**
 
@@ -103,93 +105,38 @@ The server enforces a **write directory sandbox** to prevent unauthorized file w
 
 ### Tool 1: `extract_markdown`
 
-Extract markdown content from a document **without** saving images.
+Extract markdown from a local file, optionally saving embedded images to disk.
 
 **Arguments:**
 
-```json
-{
-  "file_path": "/absolute/path/to/document.pdf"
-}
-```
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `file_path` | `string` | Yes | — | Absolute path to input file (PDF or image) |
+| `output_dir` | `string` | No | `null` | Absolute path to output parent directory. Required when `include_images` is `True`. |
+| `include_images` | `boolean` | No | `false` | When `True` and `output_dir` is set, saves images to disk |
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `file_path` | `string` | Yes | Absolute path to input file (PDF or image) |
-
-**Returns:**
+**Returns (text-only):**
 
 ```json
-"# Document Title\n\nExtracted markdown content from all pages..."
+{"result": "# Document Title\n\nExtracted markdown content..."}
 ```
 
-Returns a single string containing concatenated markdown from all pages.
-
-**Example:**
+**Returns (with images):**
 
 ```json
 {
-  "tool": "extract_markdown",
-  "arguments": {
-    "file_path": "/Users/username/documents/report.pdf"
-  }
-}
-```
-
----
-
-### Tool 2: `extract_markdown_with_images`
-
-Extract markdown content **and** save embedded images to disk.
-
-**Arguments:**
-
-```json
-{
-  "file_path": "/absolute/path/to/document.pdf",
-  "output_dir": "/absolute/path/to/output/parent"
-}
-```
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `file_path` | `string` | Yes | Absolute path to input file (PDF or image) |
-| `output_dir` | `string` | Yes | Absolute path to output parent directory (must exist and be writable, must be within `MISTRAL_OCR_ALLOWED_DIR`) |
-
-**Returns:**
-
-```json
-{
-  "output_directory": "/absolute/path/to/output/parent/document",
-  "markdown_file": "/absolute/path/to/output/parent/document/content.md",
+  "output_directory": "/absolute/path/to/output/report",
+  "markdown_file": "/absolute/path/to/output/report/content.md",
   "images": ["img_abc123.png", "img_def456.jpeg"]
 }
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `output_directory` | `string` | Absolute path to created subdirectory |
-| `markdown_file` | `string` | Absolute path to `content.md` file |
-| `images` | `array[string]` | List of saved image filenames (not full paths) |
-
-**Behavior:**
+**Behavior (with images):**
 
 1. Creates a subdirectory named after the input file stem (e.g., `report` for `report.pdf`)
 2. If the subdirectory already exists, appends a timestamp: `report_20260102_143022`
 3. Saves all extracted images as `<sanitized_id>.<ext>` (e.g., `img_abc123.png`)
 4. Saves markdown to `content.md` with relative image links (e.g., `![](./img_abc123.png)`)
-
-**Example:**
-
-```json
-{
-  "tool": "extract_markdown_with_images",
-  "arguments": {
-    "file_path": "/Users/username/documents/quarterly-report.pdf",
-    "output_dir": "/Users/username/workdir/extracted"
-  }
-}
-```
 
 **Output Structure:**
 
@@ -199,6 +146,74 @@ Extract markdown content **and** save embedded images to disk.
     content.md          # Markdown with relative image links
     img_abc123.png      # First extracted image
     img_def456.jpeg     # Second extracted image
+```
+
+---
+
+### Tool 2: `extract_markdown_from_url`
+
+Extract markdown from a publicly accessible URL, optionally saving embedded images to disk.
+
+**Arguments:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `file_url` | `string` | Yes | — | Public URL to a PDF or image |
+| `output_dir` | `string` | No | `null` | Absolute path to output parent directory. Required when `include_images` is `True`. |
+| `include_images` | `boolean` | No | `false` | When `True` and `output_dir` is set, saves images to disk |
+
+**Returns (text-only):**
+
+```json
+{"result": "# Document Title\n\nExtracted markdown content..."}
+```
+
+**Returns (with images):**
+
+```json
+{
+  "output_directory": "/absolute/path/to/output/doc",
+  "markdown_file": "/absolute/path/to/output/doc/content.md",
+  "images": ["img_abc123.png"]
+}
+```
+
+---
+
+### Tool 3: `extract_markdown_advanced`
+
+Extract markdown with advanced OCR options.
+
+**Arguments:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `file_path` | `string` | Yes | — | Absolute path to input file (PDF or image) |
+| `pages` | `array[integer]` | No | `null` | Page numbers to process (1-indexed, e.g. `[1, 3, 5]`) |
+| `table_format_` | `string` | No | `null` | Table output format (`"markdown"` or `"html"`) |
+| `model` | `string` | No | `"mistral-ocr-latest"` | OCR model to use |
+
+**Returns:**
+
+```json
+{"result": "# Document\n\n| Col 1 | Col 2 |\n|-------|-------|\n..."}
+```
+
+---
+
+### Tool 4: `ocr_status`
+
+Check API connectivity and key validity.
+
+**Arguments:** none
+
+**Returns:**
+
+```json
+{
+  "status": "ok",
+  "message": "API key is working"
+}
 ```
 
 ---
@@ -225,7 +240,7 @@ async def extract_document():
         async with ClientSession(read, write) as session:
             await session.initialize()
             
-            # Simple extraction
+            # Text-only extraction
             result = await session.call_tool(
                 "extract_markdown",
                 arguments={"file_path": "/path/to/document.pdf"}
@@ -234,12 +249,24 @@ async def extract_document():
             
             # Extraction with images
             result = await session.call_tool(
-                "extract_markdown_with_images",
+                "extract_markdown",
                 arguments={
                     "file_path": "/path/to/document.pdf",
+                    "include_images": True,
                     "output_dir": "/Users/username/workdir/output"
                 }
             )
+            print(result.content[0].text)
+            
+            # Extract from URL
+            result = await session.call_tool(
+                "extract_markdown_from_url",
+                arguments={"file_url": "https://example.com/doc.pdf"}
+            )
+            print(result.content[0].text)
+            
+            # Check API status
+            result = await session.call_tool("ocr_status", arguments={})
             print(result.content[0].text)
 
 asyncio.run(extract_document())

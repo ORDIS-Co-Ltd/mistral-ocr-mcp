@@ -569,3 +569,132 @@ class TestServerIntegration:
 
         # The function receives output_dir=None and include_images=False
         assert captured_args == {"output_dir": None, "include_images": False}
+
+    def test_mcp_call_tool_returns_inline_result(self, tmp_path, monkeypatch):
+        """Test that MCP call_tool returns correct result (no output_dir)."""
+        import asyncio
+
+        from mistral_ocr_mcp.server import mcp
+
+        mock_response = Mock()
+        mock_page = Mock()
+        mock_page.markdown = "# Page 1\n\nContent"
+        mock_response.pages = [mock_page]
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.extraction.process_local_file",
+            lambda path, **kwargs: mock_response,
+        )
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.extraction.validate_file_path",
+            lambda path: Path(path).resolve(),
+        )
+
+        async def call():
+            return await mcp.call_tool(
+                "extract_markdown",
+                {"file_path": str(tmp_path / "test.pdf")},
+            )
+
+        result = asyncio.run(call())
+        assert not result.is_error, (
+            f"MCP call failed: {result.content[0].text if result.content else 'no content'}"
+        )
+        assert result.structured_content is not None
+
+    def test_mcp_call_tool_saves_markdown_to_disk(self, tmp_path, monkeypatch):
+        """Test that MCP call_tool saves content.md when output_dir is set."""
+        import asyncio
+
+        from mistral_ocr_mcp.server import mcp
+
+        test_file = tmp_path / "test.pdf"
+        test_file.write_bytes(b"%PDF-1.4\n%EOF")
+
+        mock_response = Mock()
+        mock_page = Mock()
+        mock_page.markdown = "# Page 1\n\nContent"
+        mock_response.pages = [mock_page]
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.extraction.process_local_file",
+            lambda path, **kwargs: mock_response,
+        )
+
+        mock_config = Mock()
+        mock_config.allowed_dir_resolved = tmp_path
+        mock_config.allowed_dir_original = str(tmp_path)
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.extraction.load_config", lambda: mock_config
+        )
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        async def call():
+            return await mcp.call_tool(
+                "extract_markdown",
+                {
+                    "file_path": str(test_file),
+                    "output_dir": str(output_dir),
+                },
+            )
+
+        result = asyncio.run(call())
+        assert not result.is_error, (
+            f"MCP call failed: {result.content[0].text if result.content else 'no content'}"
+        )
+        content_files = list(output_dir.rglob("content.md"))
+        assert len(content_files) > 0, (
+            "content.md should be saved when output_dir is set"
+        )
+
+    def test_mcp_call_tool_with_images_saves_content_and_images(
+        self, tmp_path, monkeypatch
+    ):
+        """Test that MCP call_tool saves content.md and images when include_images=True."""
+        import asyncio
+
+        from mistral_ocr_mcp.server import mcp
+
+        test_file = tmp_path / "doc.pdf"
+        test_file.write_bytes(b"%PDF-1.4\n%EOF")
+
+        mock_response = Mock()
+        mock_page = Mock()
+        mock_page.markdown = "# Page 1\n\nContent"
+        mock_page.images = []
+        mock_response.pages = [mock_page]
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.extraction.process_local_file",
+            lambda path, **kwargs: mock_response,
+        )
+
+        mock_config = Mock()
+        mock_config.allowed_dir_resolved = tmp_path
+        mock_config.allowed_dir_original = str(tmp_path)
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.extraction.load_config", lambda: mock_config
+        )
+        monkeypatch.setattr(
+            "mistral_ocr_mcp.extraction.save_images", lambda out_dir, images: []
+        )
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        async def call():
+            return await mcp.call_tool(
+                "extract_markdown",
+                {
+                    "file_path": str(test_file),
+                    "output_dir": str(output_dir),
+                    "include_images": True,
+                },
+            )
+
+        result = asyncio.run(call())
+        assert not result.is_error, (
+            f"MCP call failed: {result.content[0].text if result.content else 'no content'}"
+        )
+        content_files = list(output_dir.rglob("content.md"))
+        assert len(content_files) > 0, "content.md should be saved"
+        assert result.structured_content is not None

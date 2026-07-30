@@ -6,7 +6,7 @@ image saving, and markdown rewriting.
 
 import datetime
 from pathlib import Path
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 from urllib.parse import urlparse
 
 from .config import load_config
@@ -22,14 +22,16 @@ from .path_sandbox import validate_file_path, validate_output_dir
 
 
 class ExtractMarkdownWithImagesResult(TypedDict):
-    """Result of extracting markdown with embedded images."""
+    """Result of extracting markdown from a file."""
 
-    output_directory: str
-    """Absolute path to the output subdirectory."""
-    markdown_file: str
-    """Absolute path to the content.md file."""
-    images: list[str]
-    """List of saved image filenames (not full paths)."""
+    output_directory: NotRequired[str]
+    """Absolute path to the output subdirectory (set when output_dir is provided)."""
+    markdown_file: NotRequired[str]
+    """Absolute path to the content.md file (set when output_dir is provided)."""
+    images: NotRequired[list[str]]
+    """List of saved image filenames (set when output_dir is provided)."""
+    result: NotRequired[str]
+    """Extracted markdown content (set when output_dir is not provided)."""
 
 
 def extract_markdown(
@@ -92,7 +94,7 @@ def extract_markdown(
             "images": [],
         }
 
-    return {"result": markdown}  # type: ignore[return-value]
+    return {"result": markdown}
 
 
 def _extract_markdown_with_images(
@@ -215,7 +217,7 @@ def extract_from_url(
             "images": [],
         }
 
-    return {"result": markdown}  # type: ignore[return-value]
+    return {"result": markdown}
 
 
 def extract_markdown_advanced(

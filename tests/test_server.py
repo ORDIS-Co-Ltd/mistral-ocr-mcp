@@ -3,13 +3,14 @@
 import sys
 from pathlib import Path
 from unittest.mock import Mock
+
 import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from mistral_ocr_mcp.server import list_tools_impl, call_tool_impl
 from mistral_ocr_mcp.path_sandbox import PathValidationError
+from mistral_ocr_mcp.server import call_tool_impl, list_tools_impl
 
 
 class TestMCPToolRegistration:
@@ -17,8 +18,9 @@ class TestMCPToolRegistration:
 
     def test_extract_markdown_tool_has_correct_name(self):
         """Test that extract_markdown tool has the correct MCP name."""
-        from mistral_ocr_mcp.server import mcp
         import asyncio
+
+        from mistral_ocr_mcp.server import mcp
 
         async def get_tool_names():
             tools = await mcp.list_tools()
@@ -30,8 +32,9 @@ class TestMCPToolRegistration:
 
     def test_extract_markdown_tool_schema(self):
         """Test that extract_markdown tool has the correct schema with all params."""
-        from mistral_ocr_mcp.server import mcp
         import asyncio
+
+        from mistral_ocr_mcp.server import mcp
 
         async def find_extract_markdown_tool():
             tools = await mcp.list_tools()
@@ -51,8 +54,9 @@ class TestMCPToolRegistration:
 
     def test_extract_markdown_from_url_tool_has_correct_name(self):
         """Test that extract_markdown_from_url tool has the correct MCP name."""
-        from mistral_ocr_mcp.server import mcp
         import asyncio
+
+        from mistral_ocr_mcp.server import mcp
 
         async def get_tool_names():
             tools = await mcp.list_tools()
@@ -63,8 +67,9 @@ class TestMCPToolRegistration:
 
     def test_extract_markdown_from_url_tool_schema(self):
         """Test that extract_markdown_from_url tool has the correct schema."""
-        from mistral_ocr_mcp.server import mcp
         import asyncio
+
+        from mistral_ocr_mcp.server import mcp
 
         async def find_tool():
             tools = await mcp.list_tools()
@@ -84,8 +89,9 @@ class TestMCPToolRegistration:
 
     def test_extract_markdown_advanced_tool_has_correct_name(self):
         """Test that extract_markdown_advanced tool has the correct MCP name."""
-        from mistral_ocr_mcp.server import mcp
         import asyncio
+
+        from mistral_ocr_mcp.server import mcp
 
         async def get_tool_names():
             tools = await mcp.list_tools()
@@ -96,8 +102,9 @@ class TestMCPToolRegistration:
 
     def test_extract_markdown_advanced_tool_schema(self):
         """Test that extract_markdown_advanced tool has the correct schema."""
-        from mistral_ocr_mcp.server import mcp
         import asyncio
+
+        from mistral_ocr_mcp.server import mcp
 
         async def find_tool():
             tools = await mcp.list_tools()
@@ -118,8 +125,9 @@ class TestMCPToolRegistration:
 
     def test_ocr_status_tool_has_correct_name(self):
         """Test that ocr_status tool has the correct MCP name."""
-        from mistral_ocr_mcp.server import mcp
         import asyncio
+
+        from mistral_ocr_mcp.server import mcp
 
         async def get_tool_names():
             tools = await mcp.list_tools()
@@ -130,8 +138,9 @@ class TestMCPToolRegistration:
 
     def test_ocr_status_tool_no_required_params(self):
         """Test that ocr_status has no required parameters."""
-        from mistral_ocr_mcp.server import mcp
         import asyncio
+
+        from mistral_ocr_mcp.server import mcp
 
         async def find_tool():
             tools = await mcp.list_tools()
@@ -142,7 +151,9 @@ class TestMCPToolRegistration:
 
         tool = asyncio.run(find_tool())
         assert tool is not None
-        assert "required" not in tool.input_schema or tool.input_schema["required"] == []
+        assert (
+            "required" not in tool.input_schema or tool.input_schema["required"] == []
+        )
 
 
 class TestListToolsImpl:
@@ -328,9 +339,7 @@ class TestExtractMarkdownToolWithImages:
                 "images": [],
             }
 
-        monkeypatch.setattr(
-            "mistral_ocr_mcp.server.extract_markdown", capture_kwargs
-        )
+        monkeypatch.setattr("mistral_ocr_mcp.server.extract_markdown", capture_kwargs)
 
         call_tool_impl(
             "extract_markdown",
@@ -368,14 +377,10 @@ class TestExtractMarkdownToolWithImages:
 
         assert "Missing required argument: file_url" in str(exc_info.value)
 
-    def test_extract_markdown_from_url_with_images_calls_function(self, tmp_path, monkeypatch):
+    def test_extract_markdown_from_url_with_images_calls_function(
+        self, tmp_path, monkeypatch
+    ):
         """Test that extract_markdown_from_url with include_images saves images."""
-        expected_result = {
-            "output_directory": str(tmp_path / "output" / "doc"),
-            "markdown_file": str(tmp_path / "output" / "doc" / "content.md"),
-            "images": ["img_abc.png"],
-        }
-
         mock_config = Mock()
         mock_config.allowed_dir_resolved = tmp_path
         mock_config.allowed_dir_original = str(tmp_path)
@@ -446,7 +451,9 @@ class TestExtractMarkdownToolWithImages:
 
         assert "Missing required argument: file_path" in str(exc_info.value)
 
-    def test_extract_markdown_advanced_passes_optional_params(self, tmp_path, monkeypatch):
+    def test_extract_markdown_advanced_passes_optional_params(
+        self, tmp_path, monkeypatch
+    ):
         """Test that optional params are passed to extraction function."""
         test_file = tmp_path / "test.pdf"
         test_file.write_bytes(b"%PDF-1.4\n%EOF")
@@ -460,9 +467,7 @@ class TestExtractMarkdownToolWithImages:
             captured["model"] = kwargs.get("model", "mistral-ocr-latest")
             return "# Result"
 
-        monkeypatch.setattr(
-            "mistral_ocr_mcp.server.extract_markdown_advanced", capture
-        )
+        monkeypatch.setattr("mistral_ocr_mcp.server.extract_markdown_advanced", capture)
 
         call_tool_impl(
             "extract_markdown_advanced",
@@ -482,9 +487,7 @@ class TestExtractMarkdownToolWithImages:
     def test_ocr_status_calls_function(self, monkeypatch):
         """Test that ocr_status calls the status function."""
         mock_status = {"status": "ok", "message": "API key is working"}
-        monkeypatch.setattr(
-            "mistral_ocr_mcp.server.ocr_status", lambda: mock_status
-        )
+        monkeypatch.setattr("mistral_ocr_mcp.server.ocr_status", lambda: mock_status)
 
         result = call_tool_impl("ocr_status", {})
 
@@ -493,9 +496,7 @@ class TestExtractMarkdownToolWithImages:
     def test_ocr_status_returns_dict(self, monkeypatch):
         """Test that ocr_status returns a dict with expected keys."""
         mock_status = {"status": "ok", "message": "API key is working"}
-        monkeypatch.setattr(
-            "mistral_ocr_mcp.server.ocr_status", lambda: mock_status
-        )
+        monkeypatch.setattr("mistral_ocr_mcp.server.ocr_status", lambda: mock_status)
 
         result = call_tool_impl("ocr_status", {})
 
@@ -517,9 +518,7 @@ class TestExtractMarkdownToolWithImages:
         def raise_error(path, **kwargs):
             raise PathValidationError("File not found")
 
-        monkeypatch.setattr(
-            "mistral_ocr_mcp.server.extract_markdown", raise_error
-        )
+        monkeypatch.setattr("mistral_ocr_mcp.server.extract_markdown", raise_error)
 
         with pytest.raises(PathValidationError) as exc_info:
             call_tool_impl(

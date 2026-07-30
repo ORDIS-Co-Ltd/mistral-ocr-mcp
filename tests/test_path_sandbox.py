@@ -3,6 +3,7 @@
 import os
 import sys
 from pathlib import Path
+
 import pytest
 
 # Add src to path for imports
@@ -22,7 +23,7 @@ class TestSupportedExtensions:
     def test_all_expected_extensions_present(self):
         """Test that all expected extensions are in SUPPORTED_EXTENSIONS."""
         expected = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif"}
-        assert SUPPORTED_EXTENSIONS == expected
+        assert expected == SUPPORTED_EXTENSIONS
 
 
 class TestValidateFilePath:

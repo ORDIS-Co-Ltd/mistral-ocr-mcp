@@ -7,10 +7,9 @@ ensuring they are within the allowed directory sandbox.
 import os
 import tempfile
 from pathlib import Path
-from typing import Set
 
 # Supported file extensions for OCR processing
-SUPPORTED_EXTENSIONS: Set[str] = {
+SUPPORTED_EXTENSIONS: set[str] = {
     ".pdf",
     ".png",
     ".jpg",

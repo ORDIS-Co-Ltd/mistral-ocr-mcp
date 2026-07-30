@@ -6,19 +6,7 @@ image saving, and markdown rewriting.
 
 import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, TypedDict
-
-
-class ExtractMarkdownWithImagesResult(TypedDict):
-    """Result of extracting markdown with embedded images."""
-
-    output_directory: str
-    """Absolute path to the output subdirectory."""
-    markdown_file: str
-    """Absolute path to the content.md file."""
-    images: list[str]
-    """List of saved image filenames (not full paths)."""
-
+from typing import TypedDict
 from urllib.parse import urlparse
 
 from .config import load_config
@@ -33,9 +21,20 @@ from .mistral_client import (
 from .path_sandbox import validate_file_path, validate_output_dir
 
 
+class ExtractMarkdownWithImagesResult(TypedDict):
+    """Result of extracting markdown with embedded images."""
+
+    output_directory: str
+    """Absolute path to the output subdirectory."""
+    markdown_file: str
+    """Absolute path to the content.md file."""
+    images: list[str]
+    """List of saved image filenames (not full paths)."""
+
+
 def extract_markdown(
     file_path: str,
-    output_dir: Optional[str] = None,
+    output_dir: str | None = None,
     include_images: bool = False,
 ) -> ExtractMarkdownWithImagesResult:
     """Extract markdown text from a PDF or image file.
@@ -73,7 +72,9 @@ def extract_markdown(
     return {"result": markdown}  # type: ignore[return-value]
 
 
-def _extract_markdown_with_images(file_path: str, output_dir: str) -> ExtractMarkdownWithImagesResult:
+def _extract_markdown_with_images(
+    file_path: str, output_dir: str
+) -> ExtractMarkdownWithImagesResult:
     """Extract markdown with embedded images and save them as separate files.
 
     Args:
@@ -98,7 +99,7 @@ def _extract_markdown_with_images(file_path: str, output_dir: str) -> ExtractMar
     )
     response = process_local_file(validated_file_path, include_image_base64=True)
 
-    images: List[dict] = []
+    images: list[dict] = []
     for page in response.pages:
         if hasattr(page, "images") and page.images:
             images.extend(
@@ -133,7 +134,7 @@ class OCRStatusResult(TypedDict):
 
 def extract_from_url(
     file_url: str,
-    output_dir: Optional[str] = None,
+    output_dir: str | None = None,
     include_images: bool = False,
 ) -> ExtractMarkdownWithImagesResult:
     """Extract markdown from a publicly accessible URL.
@@ -170,8 +171,8 @@ def extract_from_url(
 
 def extract_markdown_advanced(
     file_path: str,
-    pages: Optional[list[int]] = None,
-    table_format_: Optional[str] = None,
+    pages: list[int] | None = None,
+    table_format_: str | None = None,
     model: str = "mistral-ocr-latest",
 ) -> str:
     """Extract markdown with advanced OCR options.
@@ -232,14 +233,12 @@ def _extract_from_url_with_images(
     url_path = Path(parsed.path)
     subdir_name = url_path.stem or "document"
 
-    output_subdir = _create_output_subdirectory(
-        validated_output_dir, name=subdir_name
-    )
+    output_subdir = _create_output_subdirectory(validated_output_dir, name=subdir_name)
 
     response = process_url(file_url, include_image_base64=True)
 
     # Extract images from response
-    images: List[dict] = []
+    images: list[dict] = []
     for page in response.pages:
         if hasattr(page, "images") and page.images:
             images.extend(
@@ -281,9 +280,9 @@ def ocr_status() -> OCRStatusResult:
 
 def _create_output_subdirectory(
     output_dir: Path,
-    file_path: Optional[Path] = None,
+    file_path: Path | None = None,
     *,
-    name: Optional[str] = None,
+    name: str | None = None,
 ) -> Path:
     """Create a unique output subdirectory for a file's extracted content.
 
@@ -300,10 +299,7 @@ def _create_output_subdirectory(
     Returns:
         Path to the created output subdirectory
     """
-    if name is not None:
-        base_name = name
-    else:
-        base_name = file_path.stem
+    base_name = name if name is not None else file_path.stem
     subdir_path = output_dir / base_name
 
     # If base directory doesn't exist, just use it

@@ -8,8 +8,8 @@ import pytest
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from mistral_ocr_mcp.config import Config
 from mistral_ocr_mcp import mistral_client
+from mistral_ocr_mcp.config import Config
 
 
 class _Uploaded:

@@ -5,11 +5,10 @@ with relative file paths.
 """
 
 import re
-from typing import List, Optional
 
 
 def rewrite_markdown(
-    markdown: str, images: List[dict], output_filenames: Optional[List[str]] = None
+    markdown: str, images: list[dict], output_filenames: list[str] | None = None
 ) -> str:
     """Rewrite markdown to replace embedded base64 image URIs with relative paths.
 
@@ -45,7 +44,7 @@ def rewrite_markdown(
 
 
 def _rewrite_exact_match(
-    markdown: str, images: List[dict], output_filenames: List[str]
+    markdown: str, images: list[dict], output_filenames: list[str]
 ) -> str:
     """Rewrite using exact-match replacement of data URIs.
 
@@ -66,7 +65,7 @@ def _rewrite_exact_match(
     return result
 
 
-def _rewrite_sequential(markdown: str, images: List[dict]) -> str:
+def _rewrite_sequential(markdown: str, images: list[dict]) -> str:
     """Rewrite using sequential regex replacement.
 
     Finds all data:image/...;base64,... patterns and replaces them

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Optional
+from typing import Any
 
 try:
     from mistralai import Mistral, OCRResponse, SDKError
@@ -64,7 +64,7 @@ class MistralOCRFileError(MistralOCRClientError):
     """Raised when local filesystem operations fail."""
 
 
-def _get_client(client: Optional[Mistral] = None) -> Mistral:
+def _get_client(client: Mistral | None = None) -> Mistral:
     """Get a Mistral client, either from the optional injection or from config."""
     if client is not None:
         return client
@@ -103,8 +103,8 @@ def _upload_and_process(
     path: Path,
     *,
     include_image_base64: bool = False,
-    pages: Optional[list[int]] = None,
-    table_format: Optional[str] = None,
+    pages: list[int] | None = None,
+    table_format: str | None = None,
     model: str = "mistral-ocr-latest",
 ) -> models.OCRResponse:
     """Upload a local file and process it with OCR."""
@@ -144,7 +144,7 @@ def process_local_file(
     path: Path,
     *,
     include_image_base64: bool = False,
-    client: Optional[Mistral] = None,
+    client: Mistral | None = None,
 ) -> models.OCRResponse:
     """Run OCR against a local file path.
 
@@ -168,7 +168,9 @@ def process_local_file(
     """
 
     def _process(mistral: Mistral) -> models.OCRResponse:
-        return _upload_and_process(mistral, path, include_image_base64=include_image_base64)
+        return _upload_and_process(
+            mistral, path, include_image_base64=include_image_base64
+        )
 
     if client is not None:
         return _process(client)
@@ -182,10 +184,10 @@ def process_url(
     url: str,
     *,
     include_image_base64: bool = False,
-    pages: Optional[list[int]] = None,
-    table_format: Optional[str] = None,
+    pages: list[int] | None = None,
+    table_format: str | None = None,
     model: str = "mistral-ocr-latest",
-    client: Optional[Mistral] = None,
+    client: Mistral | None = None,
 ) -> models.OCRResponse:
     """Run OCR against a publicly accessible URL.
 
@@ -236,10 +238,10 @@ def process_local_file_advanced(
     path: Path,
     *,
     include_image_base64: bool = False,
-    pages: Optional[list[int]] = None,
-    table_format: Optional[str] = None,
+    pages: list[int] | None = None,
+    table_format: str | None = None,
     model: str = "mistral-ocr-latest",
-    client: Optional[Mistral] = None,
+    client: Mistral | None = None,
 ) -> models.OCRResponse:
     """Run OCR against a local file with advanced options.
 
@@ -264,7 +266,8 @@ def process_local_file_advanced(
 
     def _process(mistral: Mistral) -> models.OCRResponse:
         return _upload_and_process(
-            mistral, path,
+            mistral,
+            path,
             include_image_base64=include_image_base64,
             pages=pages,
             table_format=table_format,
@@ -280,7 +283,7 @@ def process_local_file_advanced(
 
 
 def check_api_status(
-    client: Optional[Mistral] = None,
+    client: Mistral | None = None,
 ) -> dict[str, Any]:
     """Verify API connectivity and key validity.
 
@@ -295,6 +298,7 @@ def check_api_status(
             - status: "ok" or "error"
             - message: Human-readable status description
     """
+
     def _check(mistral: Mistral) -> dict[str, Any]:
         try:
             mistral.models.list()

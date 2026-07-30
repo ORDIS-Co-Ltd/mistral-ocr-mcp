@@ -32,7 +32,22 @@ Repository = "https://github.com/ORDIS-Co-Ltd/mistral-ocr-mcp"
 [tool.hatch.build.targets.wheel]
 packages = ["src/mistral_ocr_mcp"]
 
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "N", "SIM", "TID252"]
+ignore = [
+    "E501",
+    "N818",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.8.0",
 ]

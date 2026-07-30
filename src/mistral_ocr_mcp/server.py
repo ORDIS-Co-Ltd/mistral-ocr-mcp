@@ -1,6 +1,7 @@
 """MCP server implementation for Mistral OCR."""
 
-from typing import Any, Optional
+import contextlib
+from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
@@ -12,7 +13,6 @@ from .extraction import (
     ocr_status,
 )
 
-
 # Create the MCP server instance
 mcp = MCPServer("Mistral OCR")
 
@@ -20,7 +20,7 @@ mcp = MCPServer("Mistral OCR")
 @mcp.tool(name="extract_markdown")
 def extract_markdown_tool(
     file_path: str,
-    output_dir: Optional[str] = None,
+    output_dir: str | None = None,
     include_images: bool = False,
 ) -> ExtractMarkdownWithImagesResult:
     """Extract markdown text from a PDF or image file.
@@ -43,13 +43,15 @@ def extract_markdown_tool(
             markdown_file: Absolute path to the content.md file
             images: List of saved image filenames
     """
-    return extract_markdown(file_path, output_dir=output_dir, include_images=include_images)
+    return extract_markdown(
+        file_path, output_dir=output_dir, include_images=include_images
+    )
 
 
 @mcp.tool(name="extract_markdown_from_url")
 def extract_markdown_from_url_tool(
     file_url: str,
-    output_dir: Optional[str] = None,
+    output_dir: str | None = None,
     include_images: bool = False,
 ) -> ExtractMarkdownWithImagesResult:
     """Extract markdown text from a publicly accessible URL.
@@ -72,14 +74,16 @@ def extract_markdown_from_url_tool(
             markdown_file: Absolute path to the content.md file
             images: List of saved image filenames
     """
-    return extract_from_url(file_url, output_dir=output_dir, include_images=include_images)
+    return extract_from_url(
+        file_url, output_dir=output_dir, include_images=include_images
+    )
 
 
 @mcp.tool(name="extract_markdown_advanced")
 def extract_markdown_advanced_tool(
     file_path: str,
-    pages: Optional[list[int]] = None,
-    table_format_: Optional[str] = None,
+    pages: list[int] | None = None,
+    table_format_: str | None = None,
     model: str = "mistral-ocr-latest",
 ) -> str:
     """Extract markdown with advanced OCR options.
@@ -177,7 +181,5 @@ def run() -> None:
 
     This is a synchronous wrapper that starts the stdio server.
     """
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         mcp.run()
-    except KeyboardInterrupt:
-        pass

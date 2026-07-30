@@ -7,7 +7,6 @@ import base64
 import binascii
 import re
 from pathlib import Path
-from typing import List, Tuple
 
 
 class ImageError(Exception):
@@ -16,7 +15,7 @@ class ImageError(Exception):
     pass
 
 
-def parse_data_uri(data_uri: str) -> Tuple[str, str]:
+def parse_data_uri(data_uri: str) -> tuple[str, str]:
     """Parse a data URI to extract MIME type and raw base64 data.
 
     Args:
@@ -144,7 +143,7 @@ def save_base64_image(output_dir: Path, image_id: str, data_uri: str) -> str:
         ) from e
 
 
-def save_images(output_dir: Path, images: List[dict]) -> List[str]:
+def save_images(output_dir: Path, images: list[dict]) -> list[str]:
     """Save multiple base64-encoded images from OCR response.
 
     Args:

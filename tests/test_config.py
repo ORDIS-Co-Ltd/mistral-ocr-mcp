@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+
 import pytest
 
 # Add src to path for imports
@@ -91,7 +92,7 @@ class TestLoadConfig:
         assert config.allowed_dir_original == str(tmp_path)
         assert config.allowed_dir_resolved == tmp_path.resolve()
         # Verify API key is NOT in the error message (if we were to create one)
-        assert "test-api-key-12345" == config.api_key
+        assert config.api_key == "test-api-key-12345"
 
     def test_canonicalization_of_allowed_dir(self, monkeypatch, tmp_path):
         """Test that allowed directory is properly canonicalized."""

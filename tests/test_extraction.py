@@ -2,8 +2,9 @@
 
 import sys
 from pathlib import Path
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -750,9 +751,7 @@ class TestExtractFromUrlWithImages:
 
         import mistral_ocr_mcp.extraction
 
-        monkeypatch.setattr(
-            mistral_ocr_mcp.extraction, "process_url", mock_process
-        )
+        monkeypatch.setattr(mistral_ocr_mcp.extraction, "process_url", mock_process)
 
         mock_config = Mock()
         mock_config.allowed_dir_resolved = tmp_path.resolve()

@@ -1,6 +1,7 @@
 """MCP server implementation for Mistral OCR."""
 
 import sys
+
 from .config import ConfigurationError, load_config
 from .server import run
 

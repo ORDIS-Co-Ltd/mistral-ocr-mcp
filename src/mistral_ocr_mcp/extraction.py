@@ -6,7 +6,18 @@ image saving, and markdown rewriting.
 
 import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, TypedDict
+
+
+class ExtractMarkdownWithImagesResult(TypedDict):
+    """Result of extracting markdown with embedded images."""
+
+    output_directory: str
+    """Absolute path to the output subdirectory."""
+    markdown_file: str
+    """Absolute path to the content.md file."""
+    images: list[str]
+    """List of saved image filenames (not full paths)."""
 
 from .config import load_config
 from .images import save_images
@@ -40,7 +51,7 @@ def extract_markdown(file_path: str) -> str:
     return "\n\n".join(page_markdowns)
 
 
-def extract_markdown_with_images(file_path: str, output_dir: str) -> Dict[str, Any]:
+def extract_markdown_with_images(file_path: str, output_dir: str) -> ExtractMarkdownWithImagesResult:
     """Extract markdown with embedded images and save them as separate files.
 
     This function:

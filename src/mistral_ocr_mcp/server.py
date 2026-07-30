@@ -4,7 +4,7 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
-from .extraction import extract_markdown, extract_markdown_with_images
+from .extraction import ExtractMarkdownWithImagesResult, extract_markdown, extract_markdown_with_images
 
 
 # Create the MCP server instance
@@ -27,7 +27,7 @@ def extract_markdown_tool(file_path: str) -> str:
 @mcp.tool(name="extract_markdown_with_images")
 def extract_markdown_with_images_tool(
     file_path: str, output_dir: str
-) -> dict[str, Any]:
+) -> ExtractMarkdownWithImagesResult:
     """Extract markdown with embedded images and save them as separate files.
 
     Args:

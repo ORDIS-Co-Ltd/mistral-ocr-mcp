@@ -382,8 +382,8 @@ class TestExtractMarkdownToolWithImages:
     ):
         """Test that extract_markdown_from_url with include_images saves images."""
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dirs_resolved = [tmp_path]
+        mock_config.allowed_dirs_original = str(tmp_path)
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
@@ -620,8 +620,8 @@ class TestServerIntegration:
         )
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dirs_resolved = [tmp_path]
+        mock_config.allowed_dirs_original = str(tmp_path)
         monkeypatch.setattr(
             "mistral_ocr_mcp.extraction.load_config", lambda: mock_config
         )
@@ -669,8 +669,8 @@ class TestServerIntegration:
         )
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dirs_resolved = [tmp_path]
+        mock_config.allowed_dirs_original = str(tmp_path)
         monkeypatch.setattr(
             "mistral_ocr_mcp.extraction.load_config", lambda: mock_config
         )

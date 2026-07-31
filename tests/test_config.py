@@ -77,7 +77,7 @@ class TestLoadConfig:
             load_config()
 
         # Should be rejected because it's relative
-        assert "must be an absolute path" in str(exc_info.value)
+        assert "is not an absolute path" in str(exc_info.value)
         assert relative_dir in str(exc_info.value)
 
     def test_successful_config_load(self, monkeypatch, tmp_path):
@@ -89,8 +89,8 @@ class TestLoadConfig:
 
         assert isinstance(config, Config)
         assert config.api_key == "test-api-key-12345"
-        assert config.allowed_dir_original == str(tmp_path)
-        assert config.allowed_dir_resolved == tmp_path.resolve()
+        assert config.allowed_dirs_original == str(tmp_path)
+        assert config.allowed_dirs_resolved == [tmp_path.resolve()]
         # Verify API key is NOT in the error message (if we were to create one)
         assert config.api_key == "test-api-key-12345"
 
@@ -111,6 +111,170 @@ class TestLoadConfig:
         config = load_config()
 
         # Should be resolved to canonical form
-        assert config.allowed_dir_resolved == nested.resolve()
+        assert config.allowed_dirs_resolved == [nested.resolve()]
         # Original string should be preserved as-is
-        assert config.allowed_dir_original == path_with_double_slash
+        assert config.allowed_dirs_original == path_with_double_slash
+
+
+class TestPathDetection:
+    """Tests for _is_windows_path and _is_unix_path helpers."""
+
+    @staticmethod
+    def _import_helpers():
+        from mistral_ocr_mcp.config import _filter_os_paths, _is_unix_path, _is_windows_path, _parse_allowed_dirs
+
+        return _is_windows_path, _is_unix_path, _filter_os_paths, _parse_allowed_dirs
+
+    def test_windows_path_detection(self):
+        """Test that Windows drive-letter paths are correctly identified."""
+        is_windows, _, _, _ = self._import_helpers()
+
+        assert is_windows(r"C:\Users\ben") is True
+        assert is_windows(r"D:/data/file.pdf") is True
+        assert is_windows("Z:\\temp\\") is True
+        assert is_windows("e:/file") is True
+
+        # Non-Windows paths
+        assert is_windows("/home/ben") is False
+        assert is_windows("relative/path") is False
+        assert is_windows(r"\server\share") is False  # UNC, no drive letter
+
+    def test_unix_path_detection(self):
+        """Test that Unix absolute paths are correctly identified."""
+        _, is_unix, _, _ = self._import_helpers()
+
+        assert is_unix("/home/ben") is True
+        assert is_unix("/var/log/file.log") is True
+        assert is_unix("/tmp") is True
+
+        # Non-Unix paths
+        assert is_unix(r"C:\Users") is False
+        assert is_unix("relative/path") is False
+        assert is_unix(r"\server\share") is False
+
+    def test_filter_os_paths(self, monkeypatch):
+        """Test that path filtering respects the current OS."""
+        _, _, filter_os, _ = self._import_helpers()
+
+        mixed = [
+            r"C:\Users\ben\Documents",
+            r"D:\Data",
+            "/home/ben/Documents",
+            "/shared",
+        ]
+
+        # Simulate Windows
+        monkeypatch.setattr("mistral_ocr_mcp.config._IS_WINDOWS", True)
+        win_result = filter_os(mixed)
+        assert r"C:\Users\ben\Documents" in win_result
+        assert r"D:\Data" in win_result
+        assert "/home/ben/Documents" not in win_result
+        assert "/shared" not in win_result
+
+        # Simulate Unix/macOS
+        monkeypatch.setattr("mistral_ocr_mcp.config._IS_WINDOWS", False)
+        unix_result = filter_os(mixed)
+        assert "/home/ben/Documents" in unix_result
+        assert "/shared" in unix_result
+        assert r"C:\Users\ben\Documents" not in unix_result
+        assert r"D:\Data" not in unix_result
+
+    def test_filter_os_paths_unknown_style_preserved(self, monkeypatch):
+        """Paths that match neither style are kept as-is."""
+        _, _, filter_os, _ = self._import_helpers()
+
+        # A UNC path or bare relative path doesn't match either pattern
+        paths = [r"\\server\share", "relative/path"]
+        monkeypatch.setattr("mistral_ocr_mcp.config._IS_WINDOWS", False)
+        result = filter_os(paths)
+        assert r"\\server\share" in result
+        assert "relative/path" in result
+
+    def test_parse_allowed_dirs_splits_semicolons(self):
+        """Semicolons are used as the path separator."""
+        _, _, _, parse = self._import_helpers()
+
+        result = parse("/a;/b;/c")
+        for p in ("/a", "/b", "/c"):
+            assert p in result
+
+    def test_parse_allowed_dirs_empty_parts_skipped(self):
+        """Empty parts from consecutive semicolons are skipped."""
+        _, _, _, parse = self._import_helpers()
+
+        result = parse("/a;;/b; ;/c")
+        for p in ("/a", "/b", "/c"):
+            assert p in result
+        assert len(result) == 3
+
+    def test_parse_allowed_dirs_os_filtering(self, monkeypatch):
+        """OS filtering is applied after splitting."""
+        _, _, _, parse = self._import_helpers()
+
+        monkeypatch.setattr("mistral_ocr_mcp.config._IS_WINDOWS", False)
+        result = parse("/home/a;/home/b;" + r"C:\Users\x")
+        assert "/home/a" in result
+        assert "/home/b" in result
+        assert r"C:\Users\x" not in result
+
+
+class TestMultiDirConfig:
+    """Tests for multi-directory config loading."""
+
+    def test_semicolon_separated_directories(self, monkeypatch, tmp_path):
+        """Multiple directories separated by semicolons are all loaded."""
+        d1 = tmp_path / "dir1"
+        d2 = tmp_path / "dir2"
+        d1.mkdir()
+        d2.mkdir()
+
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+        monkeypatch.setenv("MISTRAL_OCR_ALLOWED_DIR", f"{d1};{d2}")
+
+        config = load_config()
+        assert len(config.allowed_dirs_resolved) == 2
+        assert d1.resolve() in config.allowed_dirs_resolved
+        assert d2.resolve() in config.allowed_dirs_resolved
+
+    def test_no_paths_match_current_os(self, monkeypatch):
+        """Error when no paths match the current OS."""
+        # On Unix, Windows-style paths alone should fail
+        monkeypatch.setattr("mistral_ocr_mcp.config._IS_WINDOWS", False)
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+        monkeypatch.setenv("MISTRAL_OCR_ALLOWED_DIR", r"C:\Temp;D:\Data")
+
+        with pytest.raises(ConfigurationError) as exc_info:
+            load_config()
+
+        assert "no paths match the current OS" in str(exc_info.value)
+
+    def test_mixed_valid_invalid_skips_bad_paths(self, monkeypatch, tmp_path):
+        """Invalid paths are skipped; only valid directories are returned."""
+        d1 = tmp_path / "dir1"
+        d1.mkdir()
+
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+        monkeypatch.setenv(
+            "MISTRAL_OCR_ALLOWED_DIR",
+            f"/nonexistent/foo;{d1};/nonexistent/bar",
+        )
+
+        config = load_config()
+        assert config.allowed_dirs_resolved == [d1.resolve()]
+
+    def test_all_paths_invalid_raises_error(self, monkeypatch):
+        """Error when none of the listed paths are valid."""
+        monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+        monkeypatch.setenv(
+            "MISTRAL_OCR_ALLOWED_DIR",
+            "/nonexistent/foo;/nonexistent/bar",
+        )
+
+        with pytest.raises(ConfigurationError) as exc_info:
+            load_config()
+
+        msg = str(exc_info.value)
+        assert "no valid directories found" in msg
+        assert "/nonexistent/foo" in msg
+        assert "/nonexistent/bar" in msg
+        assert "does not exist" in msg

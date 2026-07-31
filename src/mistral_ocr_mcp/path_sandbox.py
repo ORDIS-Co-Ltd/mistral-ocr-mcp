@@ -71,22 +71,23 @@ def validate_file_path(file_path: str) -> Path:
 
 def validate_output_dir(
     output_dir: str,
-    allowed_dir_resolved: Path,
-    allowed_dir_original: str,
+    allowed_dirs_resolved: list[Path],
+    allowed_dirs_original: str,
 ) -> Path:
     """Validate and canonicalize an output directory path.
 
     Args:
         output_dir: Absolute path to the output directory
-        allowed_dir_resolved: Canonical path to the allowed directory
-        allowed_dir_original: Original string from environment (for error messages)
+        allowed_dirs_resolved: List of canonical allowed-directory paths
+        allowed_dirs_original: Original string from environment (for error messages)
 
     Returns:
         Resolved canonical Path to the output directory
 
     Raises:
         PathValidationError: If path is not absolute, doesn't exist,
-                            is not a directory, not writable, or outside allowed dir
+                            is not a directory, not writable, or outside
+                            any allowed directory.
     """
     path = Path(output_dir)
 
@@ -130,13 +131,15 @@ def validate_output_dir(
             f"validate output_dir: writability check failed: {output_dir} - {e}"
         )
 
-    # Sandbox enforcement: output_dir must be within allowed directory
-    try:
-        resolved_path.relative_to(allowed_dir_resolved)
-    except ValueError:
-        # output_dir is not a descendant of allowed_dir
-        raise PathValidationError(
-            f"output_dir must be within the allowed directory: {allowed_dir_original}"
-        )
+    # Sandbox enforcement: output_dir must be within at least one allowed dir
+    for allowed_dir in allowed_dirs_resolved:
+        try:
+            resolved_path.relative_to(allowed_dir)
+            return resolved_path
+        except ValueError:
+            continue
 
-    return resolved_path
+    # output_dir is not a descendant of any allowed directory
+    raise PathValidationError(
+        f"output_dir must be within one of the allowed directories: {allowed_dirs_original}"
+    )

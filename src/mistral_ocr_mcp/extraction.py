@@ -85,8 +85,8 @@ def extract_markdown(
         config = load_config()
         validated_output_dir = validate_output_dir(
             output_dir,
-            config.allowed_dir_resolved,
-            config.allowed_dir_original,
+            config.allowed_dirs_resolved,
+            config.allowed_dirs_original,
         )
         output_subdir = _create_output_subdirectory(
             validated_output_dir, validated_path
@@ -127,8 +127,8 @@ def _extract_markdown_with_images(
     validated_file_path = validate_file_path(file_path)
     validated_output_dir = validate_output_dir(
         output_dir,
-        config.allowed_dir_resolved,
-        config.allowed_dir_original,
+        config.allowed_dirs_resolved,
+        config.allowed_dirs_original,
     )
     output_subdir = _create_output_subdirectory(
         validated_output_dir, validated_file_path
@@ -212,8 +212,8 @@ def extract_from_url(
         config = load_config()
         validated_output_dir = validate_output_dir(
             output_dir,
-            config.allowed_dir_resolved,
-            config.allowed_dir_original,
+            config.allowed_dirs_resolved,
+            config.allowed_dirs_original,
         )
         parsed = urlparse(file_url)
         url_path = Path(parsed.path)
@@ -293,8 +293,8 @@ def _extract_from_url_with_images(
 
     validated_output_dir = validate_output_dir(
         output_dir,
-        config.allowed_dir_resolved,
-        config.allowed_dir_original,
+        config.allowed_dirs_resolved,
+        config.allowed_dirs_original,
     )
 
     # Derive a name from the URL for the output subdirectory

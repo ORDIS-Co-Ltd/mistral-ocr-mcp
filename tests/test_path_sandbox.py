@@ -138,7 +138,7 @@ class TestValidateOutputDir:
     def test_non_absolute_path(self):
         """Test that relative paths are rejected."""
         with pytest.raises(PathValidationError) as exc_info:
-            validate_output_dir("relative/path", Path("/tmp"), "/tmp")
+            validate_output_dir("relative/path", [Path("/tmp")], "/tmp")
 
         assert "validate output_dir" in str(exc_info.value)
         assert "absolute path" in str(exc_info.value)
@@ -147,7 +147,7 @@ class TestValidateOutputDir:
     def test_nonexistent_directory(self):
         """Test that nonexistent directories are rejected."""
         with pytest.raises(PathValidationError) as exc_info:
-            validate_output_dir("/nonexistent/directory", Path("/tmp"), "/tmp")
+            validate_output_dir("/nonexistent/directory", [Path("/tmp")], "/tmp")
 
         assert "validate output_dir" in str(exc_info.value)
         assert "resolve failed" in str(exc_info.value)
@@ -160,7 +160,7 @@ class TestValidateOutputDir:
         test_file.write_text("test")
 
         with pytest.raises(PathValidationError) as exc_info:
-            validate_output_dir(str(test_file), Path("/tmp"), "/tmp")
+            validate_output_dir(str(test_file), [Path("/tmp")], "/tmp")
 
         assert "validate output_dir" in str(exc_info.value)
         assert "is not a directory" in str(exc_info.value)
@@ -179,7 +179,7 @@ class TestValidateOutputDir:
                 test_dir.chmod(0o444)  # Read-only
 
                 with pytest.raises(PathValidationError) as exc_info:
-                    validate_output_dir(str(test_dir), Path("/tmp"), "/tmp")
+                    validate_output_dir(str(test_dir), [Path("/tmp")], "/tmp")
 
                 assert "validate output_dir" in str(exc_info.value)
                 assert "writability check failed" in str(exc_info.value)
@@ -198,11 +198,11 @@ class TestValidateOutputDir:
         output_dir.mkdir()
 
         with pytest.raises(PathValidationError) as exc_info:
-            validate_output_dir(str(output_dir), allowed_dir, "/allowed/original")
+            validate_output_dir(str(output_dir), [allowed_dir], "/allowed/original")
 
         assert (
             str(exc_info.value)
-            == "output_dir must be within the allowed directory: /allowed/original"
+            == "output_dir must be within one of the allowed directories: /allowed/original"
         )
 
     def test_parent_traversal_attack(self, tmp_path):
@@ -214,17 +214,17 @@ class TestValidateOutputDir:
         output_dir_str = str(allowed_dir / "..")
 
         with pytest.raises(PathValidationError) as exc_info:
-            validate_output_dir(output_dir_str, allowed_dir.resolve(), str(allowed_dir))
+            validate_output_dir(output_dir_str, [allowed_dir.resolve()], str(allowed_dir))
 
         # The error should mention the original allowed dir string
         assert (
             str(exc_info.value)
-            == f"output_dir must be within the allowed directory: {allowed_dir}"
+            == f"output_dir must be within one of the allowed directories: {allowed_dir}"
         )
 
     def test_success_exact_match(self, tmp_path):
         """Test that exact match to allowed dir is accepted."""
-        result = validate_output_dir(str(tmp_path), tmp_path, str(tmp_path))
+        result = validate_output_dir(str(tmp_path), [tmp_path], str(tmp_path))
 
         assert result == tmp_path.resolve()
 
@@ -233,7 +233,7 @@ class TestValidateOutputDir:
         subdir = tmp_path / "subdir"
         subdir.mkdir()
 
-        result = validate_output_dir(str(subdir), tmp_path, "/tmp/original")
+        result = validate_output_dir(str(subdir), [tmp_path], "/tmp/original")
 
         assert result == subdir.resolve()
 
@@ -242,9 +242,63 @@ class TestValidateOutputDir:
         nested = tmp_path / "a" / "b" / "c"
         nested.mkdir(parents=True)
 
-        result = validate_output_dir(str(nested), tmp_path, "/tmp/original")
+        result = validate_output_dir(str(nested), [tmp_path], "/tmp/original")
 
         assert result == nested.resolve()
+
+    def test_multiple_allowed_dirs_first_match(self, tmp_path):
+        """Output dir matching the first allowed directory is accepted."""
+        allowed1 = tmp_path / "allowed1"
+        allowed2 = tmp_path / "allowed2"
+        allowed1.mkdir()
+        allowed2.mkdir()
+
+        result = validate_output_dir(
+            str(allowed1), [allowed1, allowed2], str(tmp_path)
+        )
+        assert result == allowed1.resolve()
+
+    def test_multiple_allowed_dirs_second_match(self, tmp_path):
+        """Output dir matching the second allowed directory is accepted."""
+        allowed1 = tmp_path / "allowed1"
+        allowed2 = tmp_path / "allowed2"
+        allowed1.mkdir()
+        allowed2.mkdir()
+
+        result = validate_output_dir(
+            str(allowed2), [allowed1, allowed2], str(tmp_path)
+        )
+        assert result == allowed2.resolve()
+
+    def test_multiple_allowed_dirs_subdir_of_second(self, tmp_path):
+        """Nested subdirectory under any allowed dir is accepted."""
+        allowed1 = tmp_path / "allowed1"
+        allowed2 = tmp_path / "allowed2"
+        sub = allowed2 / "sub"
+        allowed1.mkdir()
+        allowed2.mkdir()
+        sub.mkdir()
+
+        result = validate_output_dir(
+            str(sub), [allowed1, allowed2], str(tmp_path)
+        )
+        assert result == sub.resolve()
+
+    def test_multiple_allowed_dirs_no_match(self, tmp_path):
+        """Output dir matching none of the allowed directories is rejected."""
+        allowed1 = tmp_path / "allowed1"
+        allowed2 = tmp_path / "allowed2"
+        outside = tmp_path / "outside"
+        allowed1.mkdir()
+        allowed2.mkdir()
+        outside.mkdir()
+
+        with pytest.raises(PathValidationError) as exc_info:
+            validate_output_dir(
+                str(outside), [allowed1, allowed2], "/original/path"
+            )
+
+        assert "one of the allowed directories" in str(exc_info.value)
 
     def test_symlink_escape(self, tmp_path):
         """Test that symlinks pointing outside allowed dir are rejected."""
@@ -271,10 +325,10 @@ class TestValidateOutputDir:
         # because it resolves outside allowed_dir
         with pytest.raises(PathValidationError) as exc_info:
             validate_output_dir(
-                str(link_path), allowed_dir.resolve(), "/allowed/original"
+                str(link_path), [allowed_dir.resolve()], "/allowed/original"
             )
 
         assert (
             str(exc_info.value)
-            == "output_dir must be within the allowed directory: /allowed/original"
+            == "output_dir must be within one of the allowed directories: /allowed/original"
         )

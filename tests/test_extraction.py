@@ -271,8 +271,8 @@ class TestExtractMarkdownWithImages:
         monkeypatch.setattr(mistral_ocr_mcp.extraction, "save_images", mock_save_images)
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dirs_resolved = [tmp_path]
+        mock_config.allowed_dirs_original = str(tmp_path)
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
@@ -326,8 +326,8 @@ class TestExtractMarkdownWithImages:
         )
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dirs_resolved = [tmp_path]
+        mock_config.allowed_dirs_original = str(tmp_path)
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
@@ -373,8 +373,8 @@ class TestExtractMarkdownWithImages:
         )
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dirs_resolved = [tmp_path]
+        mock_config.allowed_dirs_original = str(tmp_path)
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
@@ -391,8 +391,8 @@ class TestExtractMarkdownWithImages:
         import mistral_ocr_mcp.extraction
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dirs_resolved = [tmp_path]
+        mock_config.allowed_dirs_original = str(tmp_path)
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
@@ -421,8 +421,8 @@ class TestExtractMarkdownWithImages:
         import mistral_ocr_mcp.extraction
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dirs_resolved = [tmp_path]
+        mock_config.allowed_dirs_original = str(tmp_path)
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
@@ -477,8 +477,8 @@ class TestExtractMarkdownWithImages:
         )
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dirs_resolved = [tmp_path]
+        mock_config.allowed_dirs_original = str(tmp_path)
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
@@ -523,8 +523,8 @@ class TestExtractMarkdownWithImages:
         )
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path
-        mock_config.allowed_dir_original = str(tmp_path)
+        mock_config.allowed_dirs_resolved = [tmp_path]
+        mock_config.allowed_dirs_original = str(tmp_path)
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
@@ -714,8 +714,8 @@ class TestExtractFromUrlWithImages:
         )
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path.resolve()
-        mock_config.allowed_dir_original = str(tmp_path.resolve())
+        mock_config.allowed_dirs_resolved = [tmp_path.resolve()]
+        mock_config.allowed_dirs_original = str(tmp_path.resolve())
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )
@@ -759,8 +759,8 @@ class TestExtractFromUrlWithImages:
         monkeypatch.setattr(mistral_ocr_mcp.extraction, "process_url", mock_process)
 
         mock_config = Mock()
-        mock_config.allowed_dir_resolved = tmp_path.resolve()
-        mock_config.allowed_dir_original = str(tmp_path.resolve())
+        mock_config.allowed_dirs_resolved = [tmp_path.resolve()]
+        mock_config.allowed_dirs_original = str(tmp_path.resolve())
         monkeypatch.setattr(
             mistral_ocr_mcp.extraction, "load_config", lambda: mock_config
         )

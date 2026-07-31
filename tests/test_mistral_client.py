@@ -155,8 +155,8 @@ def test_mistral_error_wrapped_with_status_code(monkeypatch, tmp_path):
         "load_config",
         lambda: Config(
             api_key="should-not-leak",
-            allowed_dir_original="/allowed",
-            allowed_dir_resolved=Path("/allowed"),
+            allowed_dirs_original="/allowed",
+            allowed_dirs_resolved=[Path("/allowed")],
         ),
     )
 
